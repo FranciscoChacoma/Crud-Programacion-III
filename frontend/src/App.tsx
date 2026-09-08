@@ -1,81 +1,34 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import { PrivateRoute } from './components/PrivateRoute';
+import { LoginPage } from './pages/LoginPage';
+import { RegisterPage } from './pages/RegisterPage';
+import { DashboardPage } from './pages/DashboardPage';
+import { TournamentFormPage } from './pages/TournamentFormPage';
+import { TournamentDetailPage } from './pages/TournamentDetailPage';
+import { PairRegistrationPage } from './pages/PairRegistrationPage';
+import { CourtsPage } from './pages/CourtsPage';
+import { FixturePage } from './pages/FixturePage';
 
-export default function App() {
-  const [jugadores, setJugadores] = useState([]);
-  const [nombre, setNombre] = useState('');
-  const [apellido, setApellido] = useState('');
-  const [idSeleccionado, setIdSeleccionado] = useState(null); // Para saber si estamos editando
-
-  const url = "http://localhost:8080/api/jugadores";
-
-  useEffect(() => { cargar(); }, []);
-
-  const cargar = async () => {
-    const res = await axios.get(url);
-    setJugadores(res.data);
-  };
-
-  const guardar = async () => {
-    if (idSeleccionado) {
-      // Si hay un ID, es una MODIFICACIÓN (PUT)
-      await axios.put(`${url}/${idSeleccionado}`, { nombre, apellido });
-    } else {
-      // Si NO hay ID, es un ALTA (POST)
-      await axios.post(url, { nombre, apellido });
-    }
-    limpiar();
-    cargar();
-  };
-
-  const prepararEdicion = (j: any) => {
-    setNombre(j.nombre);
-    setApellido(j.apellido);
-    setIdSeleccionado(j.id); // Guardamos el ID para saber que estamos editando
-  };
-
-  const borrar = async (id: any) => {
-    await axios.delete(`${url}/${id}`);
-    cargar();
-  };
-
-  const limpiar = () => {
-    setNombre('');
-    setApellido('');
-    setIdSeleccionado(null);
-  };
-
+function App() {
   return (
-    <div style={{ padding: '20px' }}>
-      <h2>Formulario</h2>
-      <input placeholder="Nombre" value={nombre} onChange={e => setNombre(e.target.value)} />
-      <input placeholder="Apellido" value={apellido} onChange={e => setApellido(e.target.value)} />
-      
-      <button onClick={guardar}>{idSeleccionado ? 'Actualizar' : 'Guardar'}</button>
-      {idSeleccionado && <button onClick={limpiar}>Cancelar</button>}
-
-      <h2>Tabla de Jugadores</h2>
-      <table border={1} width="100%">
-        <thead>
-          <tr>
-            <th>Nombre</th>
-            <th>Apellido</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {jugadores.map((j: any) => (
-            <tr key={j.id}>
-              <td>{j.nombre}</td>
-              <td>{j.apellido}</td>
-              <td>
-                <button onClick={() => prepararEdicion(j)}>Editar</button>
-                <button onClick={() => borrar(j.id)}>Borrar</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
+          <Route path="/tournaments/new" element={<PrivateRoute><TournamentFormPage /></PrivateRoute>} />
+          <Route path="/tournaments/:id" element={<PrivateRoute><TournamentDetailPage /></PrivateRoute>} />
+          <Route path="/tournaments/:id/pairs/new" element={<PrivateRoute><PairRegistrationPage /></PrivateRoute>} />
+          <Route path="/tournaments/:id/pairs/:pairId/edit" element={<PrivateRoute><PairRegistrationPage /></PrivateRoute>} />
+          <Route path="/tournaments/:id/courts" element={<PrivateRoute><CourtsPage /></PrivateRoute>} />
+          <Route path="/tournaments/:id/fixture" element={<PrivateRoute><FixturePage /></PrivateRoute>} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
+
+export default App;
