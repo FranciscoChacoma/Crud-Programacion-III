@@ -1,16 +1,14 @@
 import type { ReactNode } from 'react';
-import { Sidebar } from './Sidebar';
-import { theme } from '../theme';
+import { Sidebar, Topbar } from './Sidebar';
 
-export function Layout({ children }: { children: ReactNode }) {
+export function Layout({ children, narrow }: { children: ReactNode; narrow?: boolean }) {
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', width: '100%', background: theme.color.bg }}>
+    <div className="shell">
       <Sidebar />
-      <main style={{ flex: 1, padding: '36px 40px', overflow: 'auto', animation: 'ui-fade-in 0.2s ease' }}>
-        <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-          {children}
-        </div>
-      </main>
+      <div className="main">
+        <Topbar />
+        <main className={`content${narrow ? ' content-narrow' : ''}`}>{children}</main>
+      </div>
     </div>
   );
 }

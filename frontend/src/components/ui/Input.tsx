@@ -1,37 +1,31 @@
-import { useId, type InputHTMLAttributes } from 'react';
-import { theme } from '../../theme';
+import { useId, type InputHTMLAttributes, type ReactNode } from 'react';
+
+interface FieldProps {
+  label?: string;
+  hint?: ReactNode;
+  htmlFor?: string;
+  children: ReactNode;
+}
+
+export function Field({ label, hint, htmlFor, children }: FieldProps) {
+  return (
+    <div className="field">
+      {label && <label htmlFor={htmlFor} className="field-label">{label}</label>}
+      {children}
+      {hint && <span className="field-hint">{hint}</span>}
+    </div>
+  );
+}
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
+  hint?: ReactNode;
 }
 
-export function Input({ label, style, className, id, ...rest }: InputProps) {
+export function Input({ label, hint, className, id, ...rest }: InputProps) {
   const autoId = useId();
-  id = id ?? (label ? autoId : undefined);
-  const inputEl = (
-    <input
-      id={id}
-      className={`ui-field${className ? ` ${className}` : ''}`}
-      style={{
-        background: theme.color.bgInput,
-        border: `1px solid ${theme.color.border}`,
-        color: theme.color.text,
-        padding: '11px 14px',
-        borderRadius: theme.radius.sm,
-        fontSize: '14px',
-        width: '100%',
-        boxSizing: 'border-box',
-        transition: 'all 0.15s ease',
-        ...style,
-      }}
-      {...rest}
-    />
-  );
-  if (!label) return inputEl;
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-      <label htmlFor={id} style={{ color: theme.color.textMuted, fontSize: '13px', fontWeight: 500 }}>{label}</label>
-      {inputEl}
-    </div>
-  );
+  const inputId = id ?? autoId;
+  const input = <input id={inputId} className={['input', className].filter(Boolean).join(' ')} {...rest} />;
+  if (!label && !hint) return input;
+  return <Field label={label} hint={hint} htmlFor={inputId}>{input}</Field>;
 }

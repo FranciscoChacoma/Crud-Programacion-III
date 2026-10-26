@@ -1,36 +1,55 @@
-import { useEffect, useState, type CSSProperties } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { generateFixture, getFixture } from '../api/fixture';
 import { useAuth } from '../context/AuthContext';
+import { useTournament } from '../hooks/useTournament';
 import { Layout } from '../components/Layout';
-import { Badge, Button, Card, EmptyState, PageHeader, Spinner, Table, Td, Th, Tr } from '../components/ui';
-import { categoryLabel, levelColor, scheduleLabel, theme } from '../theme';
-import type { FixtureResult } from '../types';
+import { TournamentHeader, TournamentPlaceholder } from '../components/TournamentHeader';
+import {
+  Alert, Badge, Button, Card, CardHeader, EmptyState, Icon, LoadingBlock, Stat, Table, Td, Th, Tr, useFeedback,
+} from '../components/ui';
+import { categoryLabel, levelTone, scheduleLabel } from '../theme';
+import type { FixtureResult, PairSummary } from '../types';
+
+const pairName = (p: PairSummary) => `${p.player1} / ${p.player2}`;
 
 export function FixturePage() {
   const { id } = useParams<{ id: string }>();
   const { token } = useAuth();
-  const navigate = useNavigate();
+  const { confirm, toast } = useFeedback();
+  const { tournament, notFound } = useTournament(id);
   const [fixture, setFixture] = useState<FixtureResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => { load(); }, [token, id]);
-
-  const load = () => {
+  useEffect(() => {
     if (!token || !id) return;
-    setLoading(true);
-    getFixture(id, token).then(setFixture).catch(err => setError(err.message)).finally(() => setLoading(false));
-  };
+    getFixture(id, token)
+      .then(setFixture)
+      .catch(err => setError(err instanceof Error ? err.message : 'Error al obtener el fixture'))
+      .finally(() => setLoading(false));
+  }, [token, id]);
+
+  const hasFixture = !!fixture && fixture.groups.length > 0;
 
   const handleGenerate = async () => {
     if (!token || !id) return;
+    if (hasFixture) {
+      const ok = await confirm({
+        title: 'Regenerar fixture',
+        message: 'Se reemplazarán los grupos, partidos y horarios actuales por una nueva asignación.',
+        confirmLabel: 'Regenerar',
+        tone: 'primary',
+        icon: 'refresh',
+      });
+      if (!ok) return;
+    }
     setError('');
     setGenerating(true);
     try {
-      const result = await generateFixture(id, token);
-      setFixture(result);
+      setFixture(await generateFixture(id, token));
+      toast('Fixture generado');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al generar el fixture');
     } finally {
@@ -38,90 +57,90 @@ export function FixturePage() {
     }
   };
 
-  const hasFixture = !!fixture && fixture.groups.length > 0;
+  if (!tournament) {
+    return <Layout><TournamentPlaceholder notFound={notFound} /></Layout>;
+  }
+
+  const totalMatches = fixture?.groups.reduce((n, g) => n + g.matches.length, 0) ?? 0;
 
   return (
     <Layout>
-      <PageHeader
-        title="Fixture"
-        onBack={() => navigate(`/tournaments/${id}`)}
-        backLabel="Torneo"
-        subtitle={<p style={s.sub}>Grupos, horarios y canchas asignados automáticamente.</p>}
+      <TournamentHeader
+        tournament={tournament}
         actions={
-          <Button onClick={handleGenerate} disabled={generating}>
-            {generating ? 'Generando...' : hasFixture ? '↻ Regenerar Fixture' : '⚡ Generar Fixture'}
+          <Button icon={hasFixture ? 'refresh' : 'zap'} onClick={handleGenerate} loading={generating}>
+            {hasFixture ? 'Regenerar fixture' : 'Generar fixture'}
           </Button>
         }
       />
 
-      {error && <Card style={{ ...s.banner, borderColor: theme.color.danger, background: theme.color.dangerDim, marginBottom: '20px' }}>
-        <p style={{ ...s.bannerText, color: theme.color.danger }}>{error}</p>
-      </Card>}
+      {error && <Alert style={{ marginBottom: 16 }}>{error}</Alert>}
 
-      {loading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '60px' }}><Spinner /></div>
-      ) : (
+      {loading ? <LoadingBlock /> : (
         <>
           {fixture && fixture.warnings.length > 0 && (
-            <Card style={{ ...s.banner, borderColor: theme.color.warning, background: theme.color.warningDim, marginBottom: '20px' }}>
-              {fixture.warnings.map((w, i) => (
-                <p key={i} style={{ ...s.bannerText, color: theme.color.warning }}>⚠ {w}</p>
-              ))}
-            </Card>
+            <Alert tone="warning" title="Advertencias" style={{ marginBottom: 16 }}>
+              <ul>{fixture.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
+            </Alert>
           )}
 
           {!hasFixture ? (
-            <EmptyState
-              title="Todavía no se generó el fixture de este torneo"
-              description="Cargá canchas y parejas, y después generalo con un clic: se arman los grupos por nivel y se asignan horarios automáticamente."
-            />
+            <Card>
+              <EmptyState
+                icon="calendar"
+                title="Todavía no se generó el fixture"
+                description="Cargá canchas e inscribí parejas. Después, con un clic se arman los grupos por nivel y se asignan canchas y horarios."
+                action={<Button icon="zap" onClick={handleGenerate} loading={generating}>Generar fixture</Button>}
+              />
+            </Card>
           ) : (
-            <div style={s.groupsWrap}>
-              {fixture!.groups.map(group => (
-                <Card key={group.name} padding="0" style={{ overflow: 'hidden' }}>
-                  <div style={s.groupHeader}>
-                    <span style={s.groupTitle}>Grupo {group.name}</span>
-                    <Badge variant="soft">{categoryLabel[group.category]}</Badge>
-                    <span style={s.groupPairCount}>{group.pairs.length} parejas</span>
-                  </div>
-                  <div style={s.groupPairs}>
-                    {group.pairs.map(p => (
-                      <span key={p.id} style={s.pairChip}>
-                        <span style={{ ...s.pairChipDot, background: levelColor[p.level] }} />
-                        {p.player1} / {p.player2}
-                      </span>
-                    ))}
-                  </div>
-                  {group.matches.length > 0 && (
-                    <div style={{ padding: '0 4px 4px' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead>
-                          <tr>
-                            <Th>Partido</Th>
-                            <Th>Cancha</Th>
-                            <Th>Horario</Th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {group.matches.map(m => (
-                            <Tr key={m.id}>
-                              <Td>{m.pair1.player1}/{m.pair1.player2} <span style={{ color: theme.color.textFaint }}>vs</span> {m.pair2.player1}/{m.pair2.player2}</Td>
-                              <Td>{m.courtName}</Td>
-                              <Td>{scheduleLabel[m.timeSlot]}</Td>
-                            </Tr>
-                          ))}
-                        </tbody>
-                      </table>
+            <>
+              <div className="stats">
+                <Stat label="Grupos" value={fixture!.groups.length} icon="layers" />
+                <Stat label="Partidos programados" value={totalMatches} icon="calendar" />
+                <Stat label="Sin horario" value={fixture!.unassignedMatches.length} icon="alertTriangle"
+                  hint={fixture!.unassignedMatches.length === 0 ? 'Todos los partidos tienen horario' : 'Revisá la disponibilidad'} />
+              </div>
+
+              <div className="groups">
+                {fixture!.groups.map(group => (
+                  <Card key={group.name} style={{ overflow: 'hidden' }}>
+                    <CardHeader
+                      leading={<span className="group-letter">{group.name}</span>}
+                      title={`Grupo ${group.name}`}
+                      subtitle={`${group.pairs.length} parejas · ${group.matches.length} partidos`}
+                      actions={<Badge>Cat. {categoryLabel[group.category]}</Badge>}
+                    />
+                    <div className="group-pairs">
+                      {group.pairs.map(p => (
+                        <Badge key={p.id} tone={levelTone[p.level]} dot>{pairName(p)}</Badge>
+                      ))}
                     </div>
-                  )}
-                </Card>
-              ))}
-            </div>
+                    {group.matches.map(m => (
+                      <div key={m.id} className="match-row">
+                        <div className="match">
+                          <span className="match-side" title={pairName(m.pair1)}>{pairName(m.pair1)}</span>
+                          <span className="match-vs">vs</span>
+                          <span className="match-side" title={pairName(m.pair2)}>{pairName(m.pair2)}</span>
+                        </div>
+                        <div className="match-info">
+                          <span className="chip"><Icon name="court" size={12} />&nbsp;{m.courtName}</span>
+                          <span className="chip"><Icon name="clock" size={12} />&nbsp;{scheduleLabel[m.timeSlot]}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </Card>
+                ))}
+              </div>
+            </>
           )}
 
           {fixture && fixture.unassignedMatches.length > 0 && (
-            <div style={{ marginTop: '28px' }}>
-              <h2 style={s.unassignedTitle}>⚠ Partidos sin horario asignado</h2>
+            <div style={{ marginTop: 24 }}>
+              <h2 className="card-title" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ color: 'var(--warning)' }}><Icon name="alertTriangle" size={18} /></span>
+                Partidos sin horario asignado
+              </h2>
               <Table>
                 <thead>
                   <tr>
@@ -133,9 +152,13 @@ export function FixturePage() {
                 <tbody>
                   {fixture.unassignedMatches.map((u, i) => (
                     <Tr key={i} hoverable={false}>
-                      <Td>{u.groupName}</Td>
-                      <Td>{u.pair1.player1}/{u.pair1.player2} <span style={{ color: theme.color.textFaint }}>vs</span> {u.pair2.player1}/{u.pair2.player2}</Td>
-                      <Td style={{ color: theme.color.warning }}>{u.reason}</Td>
+                      <Td className="cell-strong">{u.groupName}</Td>
+                      <Td>
+                        <span className="cell-strong">{pairName(u.pair1)}</span>
+                        <span className="match-vs"> vs </span>
+                        <span className="cell-strong">{pairName(u.pair2)}</span>
+                      </Td>
+                      <Td style={{ color: 'var(--warning-text)' }}>{u.reason}</Td>
                     </Tr>
                   ))}
                 </tbody>
@@ -147,24 +170,3 @@ export function FixturePage() {
     </Layout>
   );
 }
-
-const s: Record<string, CSSProperties> = {
-  sub: { color: theme.color.textFaint, fontSize: '14px', margin: 0 },
-  banner: { border: '1px solid', padding: '14px 18px' },
-  bannerText: { margin: '2px 0', fontSize: '13px', fontWeight: 500 },
-  groupsWrap: { display: 'flex', flexDirection: 'column', gap: '18px' },
-  groupHeader: {
-    display: 'flex', alignItems: 'center', gap: '10px', padding: '16px 20px',
-    background: theme.color.bgElevated, borderBottom: `1px solid ${theme.color.border}`,
-  },
-  groupTitle: { color: theme.color.text, fontSize: '16px', fontWeight: 700 },
-  groupPairCount: { color: theme.color.textFaint, fontSize: '12px', marginLeft: 'auto' },
-  groupPairs: { display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '14px 20px' },
-  pairChip: {
-    display: 'inline-flex', alignItems: 'center', gap: '6px', background: theme.color.bgInput,
-    border: `1px solid ${theme.color.border}`, borderRadius: theme.radius.pill, padding: '4px 12px',
-    fontSize: '12px', color: theme.color.textMuted,
-  },
-  pairChipDot: { width: '7px', height: '7px', borderRadius: '50%', flexShrink: 0 },
-  unassignedTitle: { color: theme.color.warning, fontSize: '16px', fontWeight: 700, margin: '0 0 14px' },
-};

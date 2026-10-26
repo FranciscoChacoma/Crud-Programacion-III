@@ -1,17 +1,7 @@
-import { theme } from '../../theme';
-
 export function Spinner({ size = 20 }: { size?: number }) {
-  return (
-    <span
-      style={{
-        display: 'inline-block',
-        width: size,
-        height: size,
-        border: `2px solid ${theme.color.border}`,
-        borderTopColor: theme.color.primary,
-        borderRadius: '50%',
-        animation: 'ui-spin 0.7s linear infinite',
-      }}
-    />
-  );
+  return <span className="spinner" style={{ width: size, height: size }} role="status" aria-label="Cargando" />;
+}
+
+export function LoadingBlock() {
+  return <div className="loading-block"><Spinner size={28} /></div>;
 }

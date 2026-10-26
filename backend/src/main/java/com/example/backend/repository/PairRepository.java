@@ -8,4 +8,5 @@ import java.util.UUID;
 public interface PairRepository extends JpaRepository<Pair, UUID> {
     List<Pair> findByTournamentId(UUID tournamentId);
     List<Pair> findByGroupId(UUID groupId);
+    List<Pair> findByPlayer1IdOrPlayer2Id(UUID player1Id, UUID player2Id);
 }

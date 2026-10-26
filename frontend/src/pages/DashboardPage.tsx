@@ -1,36 +1,54 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { deleteTournament, getTournaments } from '../api/tournaments';
 import { useAuth } from '../context/AuthContext';
 import { Layout } from '../components/Layout';
-import { Badge, Button, Card, EmptyState, PageHeader, Spinner } from '../components/ui';
-import { categoryLabel, theme } from '../theme';
+import {
+  Badge, Button, Card, EmptyState, Icon, IconButton, LoadingBlock, PageHeader, Stat, useFeedback,
+} from '../components/ui';
+import { categoryLabel, typeLabel } from '../theme';
 import type { Tournament } from '../types';
 
 export function DashboardPage() {
   const { token } = useAuth();
   const navigate = useNavigate();
+  const { confirm, toast } = useFeedback();
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  useEffect(() => { load(); }, [token]);
-
-  const load = () => {
+  useEffect(() => {
     if (!token) return;
-    getTournaments(token).then(setTournaments).catch(console.error).finally(() => setLoading(false));
-  };
+    getTournaments(token)
+      .then(setTournaments)
+      .catch(err => toast(err instanceof Error ? err.message : 'Error al obtener torneos', 'error'))
+      .finally(() => setLoading(false));
+  }, [token, toast]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return q ? tournaments.filter(t => t.name.toLowerCase().includes(q)) : tournaments;
+  }, [tournaments, query]);
+
+  const countByType = (type: Tournament['type']) => tournaments.filter(t => t.type === type).length;
 
   const handleDelete = async (e: React.MouseEvent, t: Tournament) => {
     e.stopPropagation();
     if (!token) return;
-    if (!window.confirm(`¿Eliminar "${t.name}"? Se van a borrar también sus canchas, parejas y fixture.`)) return;
+    const ok = await confirm({
+      title: `Eliminar "${t.name}"`,
+      message: 'Se eliminarán también sus canchas, parejas y fixture. Esta acción no se puede deshacer.',
+      confirmLabel: 'Eliminar torneo',
+    });
+    if (!ok) return;
     setDeletingId(t.id);
     try {
       await deleteTournament(t.id, token);
       setTournaments(prev => prev.filter(x => x.id !== t.id));
+      toast('Torneo eliminado');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Error al eliminar el torneo');
+      toast(err instanceof Error ? err.message : 'Error al eliminar el torneo', 'error');
     } finally {
       setDeletingId(null);
     }
@@ -40,57 +58,82 @@ export function DashboardPage() {
     <Layout>
       <PageHeader
         title="Torneos"
-        subtitle={<p style={s.subtitle}>Gestioná tus torneos de pádel de punta a punta</p>}
-        actions={<Button onClick={() => navigate('/tournaments/new')}>+ Nuevo Torneo</Button>}
+        description="Gestioná tus torneos de pádel de punta a punta."
+        actions={<Button icon="plus" onClick={() => navigate('/tournaments/new')}>Nuevo torneo</Button>}
       />
-      {loading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '60px' }}><Spinner /></div>
-      ) : tournaments.length === 0 ? (
-        <EmptyState
-          title="No hay torneos creados aún."
-          description="Creá tu primer torneo para empezar a inscribir parejas y generar el fixture."
-          action={<Button onClick={() => navigate('/tournaments/new')}>Crear primer torneo</Button>}
-        />
+
+      {loading ? <LoadingBlock /> : tournaments.length === 0 ? (
+        <Card>
+          <EmptyState
+            title="Todavía no creaste ningún torneo"
+            description="Creá tu primer torneo para empezar a inscribir parejas y generar el fixture."
+            action={<Button icon="plus" onClick={() => navigate('/tournaments/new')}>Crear torneo</Button>}
+          />
+        </Card>
       ) : (
-        <div style={s.grid}>
-          {tournaments.map(t => (
-            <Card key={t.id} hoverable onClick={() => navigate(`/tournaments/${t.id}`)}>
-              <div style={s.cardTop}>
-                <Badge>{categoryLabel[t.category]}</Badge>
-                <div style={s.cardTopRight}>
-                  <span style={s.cardType}>{t.type === 'ESTANDAR' ? 'Estándar' : 'Americano'}</span>
-                  <button
-                    onClick={e => handleDelete(e, t)}
-                    className="btn-danger"
-                    disabled={deletingId === t.id}
-                    title="Eliminar torneo"
-                    style={s.deleteBtn}
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-              <h3 style={s.cardName}>{t.name}</h3>
-              <p style={s.cardHint}>Ver detalles →</p>
+        <>
+          <div className="stats">
+            <Stat label="Torneos" value={tournaments.length} icon="trophy" />
+            <Stat label="Estándar" value={countByType('ESTANDAR')} icon="layers" />
+            <Stat label="Americano" value={countByType('AMERICANO')} icon="refresh" />
+          </div>
+
+          <div className="toolbar">
+            <div className="input-icon-wrap">
+              <Icon name="search" size={16} />
+              <input
+                className="input"
+                placeholder="Buscar torneo"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                aria-label="Buscar torneo"
+              />
+            </div>
+            <span className="muted" style={{ fontSize: 13 }}>
+              {filtered.length} de {tournaments.length} torneos
+            </span>
+          </div>
+
+          {filtered.length === 0 ? (
+            <Card>
+              <EmptyState icon="search" title="Sin resultados" description={`Ningún torneo coincide con "${query}".`} />
             </Card>
-          ))}
-        </div>
+          ) : (
+            <div className="grid-cards">
+              {filtered.map(t => (
+                <Card
+                  key={t.id}
+                  interactive
+                  className="tcard"
+                  role="link"
+                  tabIndex={0}
+                  onClick={() => navigate(`/tournaments/${t.id}`)}
+                  onKeyDown={e => { if (e.key === 'Enter') navigate(`/tournaments/${t.id}`); }}
+                >
+                  <div className="tcard-top">
+                    <span className="tcard-icon"><Icon name="trophy" size={20} /></span>
+                    <IconButton
+                      icon="trash"
+                      label="Eliminar torneo"
+                      danger
+                      disabled={deletingId === t.id}
+                      onClick={e => handleDelete(e, t)}
+                    />
+                  </div>
+                  <h3 className="tcard-name">{t.name}</h3>
+                  <div className="tcard-meta">
+                    <Badge tone="primary">Categoría {categoryLabel[t.category]}</Badge>
+                    <Badge>{typeLabel[t.type]}</Badge>
+                  </div>
+                  <div className="tcard-foot">
+                    Gestionar torneo <Icon name="arrowRight" size={16} />
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </Layout>
   );
 }
-
-const s: Record<string, CSSProperties> = {
-  subtitle: { color: theme.color.textFaint, fontSize: '14px', margin: 0 },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: '18px' },
-  cardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' },
-  cardTopRight: { display: 'flex', alignItems: 'center', gap: '10px' },
-  cardType: { color: theme.color.textFaint, fontSize: '12px', fontWeight: 500 },
-  deleteBtn: {
-    background: 'transparent', border: `1px solid ${theme.color.border}`, color: theme.color.textFaint,
-    width: '22px', height: '22px', borderRadius: theme.radius.sm, cursor: 'pointer', fontSize: '11px',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s ease', padding: 0,
-  },
-  cardName: { color: theme.color.text, margin: '0 0 8px', fontSize: '18px', fontWeight: 700 },
-  cardHint: { color: theme.color.primary, fontSize: '12px', margin: 0, fontWeight: 600 },
-};

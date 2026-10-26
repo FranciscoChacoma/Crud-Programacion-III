@@ -1,65 +1,85 @@
-import type { CSSProperties } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { theme } from '../theme';
+import { useTheme } from '../hooks/useTheme';
+import { Avatar, BrandMark, Icon, IconButton } from './ui';
+
+export function Brand({ tagline = true }: { tagline?: boolean }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <BrandMark />
+      <div>
+        <div className="brand-name">PadelPro</div>
+        {tagline && <div className="brand-tag">Gestión de torneos</div>}
+      </div>
+    </div>
+  );
+}
+
+export function ThemeToggle({ className = 'sidebar-logout' }: { className?: string }) {
+  const { theme, toggle } = useTheme();
+  return (
+    <IconButton
+      icon={theme === 'dark' ? 'sun' : 'moon'}
+      label={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+      className={className}
+      onClick={toggle}
+    />
+  );
+}
+
+const navClass = ({ isActive }: { isActive: boolean }) => `nav-link${isActive ? ' active' : ''}`;
 
 export function Sidebar() {
-  const { logout } = useAuth();
+  const { email, logout } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
 
   const handleLogout = () => { logout(); navigate('/login'); };
 
-  const isActive = (path: string) => location.pathname === path;
-
   return (
-    <aside style={s.sidebar}>
-      <div style={s.logo}>
-        <span style={s.logoIcon}>🎾</span>
-        <span style={s.logoText}>Pádel</span>
-      </div>
-      <nav style={s.nav}>
-        <button
-          onClick={() => navigate('/dashboard')}
-          className={`ui-nav-item${isActive('/dashboard') ? ' ui-nav-item-active' : ''}`}
-          style={{ ...s.navItem, ...(isActive('/dashboard') ? s.active : {}) }}
-        >
-          <span style={s.icon}>🏆</span> Torneos
-        </button>
+    <aside className="sidebar">
+      <div className="sidebar-brand"><Brand /></div>
+      <nav className="sidebar-section">
+        <div className="sidebar-label">General</div>
+        <NavLink to="/dashboard" className={navClass}>
+          <Icon name="grid" size={18} /> Torneos
+        </NavLink>
+        <NavLink to="/players" className={navClass}>
+          <Icon name="users" size={18} /> Jugadores
+        </NavLink>
+        <NavLink to="/tournaments/new" className={navClass}>
+          <Icon name="plus" size={18} /> Nuevo torneo
+        </NavLink>
       </nav>
-      <button onClick={handleLogout} className="btn-ghost" style={s.logout}>
-        <span style={s.icon}>🚪</span> Cerrar Sesión
-      </button>
+      <div className="sidebar-footer">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px' }}>
+          <Avatar name={email ?? '?'} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ color: 'var(--sidebar-text-strong)', fontSize: 13, fontWeight: 500 }}>Organizador</div>
+            <div style={{ color: 'var(--sidebar-text)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {email}
+            </div>
+          </div>
+          <ThemeToggle />
+          <IconButton icon="logout" label="Cerrar sesión" onClick={handleLogout} className="sidebar-logout" />
+        </div>
+      </div>
     </aside>
   );
 }
 
-const s: Record<string, CSSProperties> = {
-  sidebar: {
-    width: '232px', minHeight: '100vh', background: theme.color.bgElevated,
-    display: 'flex', flexDirection: 'column', padding: '0',
-    borderRight: `1px solid ${theme.color.border}`, flexShrink: 0,
-  },
-  logo: {
-    display: 'flex', alignItems: 'center', gap: '10px',
-    padding: '26px 22px 22px', borderBottom: `1px solid ${theme.color.border}`,
-  },
-  logoIcon: { fontSize: '24px' },
-  logoText: { color: theme.color.primary, fontWeight: 800, fontSize: '19px', letterSpacing: '0.5px' },
-  nav: { flex: 1, padding: '18px 14px', display: 'flex', flexDirection: 'column', gap: '4px' },
-  navItem: {
-    display: 'flex', alignItems: 'center', gap: '10px',
-    background: 'none', border: 'none', color: theme.color.textMuted,
-    padding: '11px 14px', borderRadius: theme.radius.sm, cursor: 'pointer',
-    fontSize: '14px', fontWeight: 500, textAlign: 'left', width: '100%',
-    transition: 'all 0.15s ease',
-  },
-  active: { background: theme.color.primaryDim, color: theme.color.primary },
-  icon: { fontSize: '15px' },
-  logout: {
-    display: 'flex', alignItems: 'center', gap: '10px',
-    margin: '14px', background: 'none', border: `1px solid ${theme.color.border}`,
-    color: theme.color.textFaint, padding: '11px 14px', borderRadius: theme.radius.sm,
-    cursor: 'pointer', fontSize: '13px', fontWeight: 500,
-  },
-};
+export function Topbar() {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+  return (
+    <header className="topbar">
+      <NavLink to="/dashboard"><Brand tagline={false} /></NavLink>
+      <div style={{ display: 'flex', gap: 4 }}>
+        <NavLink to="/players" className="icon-btn sidebar-logout" aria-label="Jugadores" title="Jugadores">
+          <Icon name="users" size={16} />
+        </NavLink>
+        <ThemeToggle />
+        <IconButton icon="logout" label="Cerrar sesión" className="sidebar-logout" onClick={() => { logout(); navigate('/login'); }} />
+      </div>
+    </header>
+  );
+}

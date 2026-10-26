@@ -1,28 +1,31 @@
 import type { HTMLAttributes, ReactNode } from 'react';
-import { theme } from '../../theme';
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
-  children: ReactNode;
-  hoverable?: boolean;
-  padding?: string;
+  interactive?: boolean;
 }
 
-export function Card({ children, hoverable, padding = '24px', style, className, ...rest }: CardProps) {
+export function Card({ interactive, className, ...rest }: CardProps) {
+  return <div className={['card', interactive && 'card-interactive', className].filter(Boolean).join(' ')} {...rest} />;
+}
+
+interface CardHeaderProps {
+  title: ReactNode;
+  subtitle?: ReactNode;
+  leading?: ReactNode;
+  actions?: ReactNode;
+}
+
+export function CardHeader({ title, subtitle, leading, actions }: CardHeaderProps) {
   return (
-    <div
-      className={`${hoverable ? 'ui-card-hover' : ''}${className ? ` ${className}` : ''}`}
-      style={{
-        background: theme.color.bgCard,
-        border: `1px solid ${theme.color.border}`,
-        borderRadius: theme.radius.md,
-        padding,
-        transition: 'all 0.15s ease',
-        cursor: hoverable ? 'pointer' : undefined,
-        ...style,
-      }}
-      {...rest}
-    >
-      {children}
+    <div className="card-header">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+        {leading}
+        <div style={{ minWidth: 0 }}>
+          <div className="card-title">{title}</div>
+          {subtitle && <div className="card-subtitle">{subtitle}</div>}
+        </div>
+      </div>
+      {actions && <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{actions}</div>}
     </div>
   );
 }

@@ -2,6 +2,28 @@ export interface Player {
   id: string;
   name: string;
   lastName: string;
+  email?: string | null;
+  phone?: string | null;
+}
+
+export interface PlayerFormData {
+  name: string;
+  lastName: string;
+  email: string;
+  phone: string;
+}
+
+export interface Participation {
+  pairId: string;
+  tournamentId: string;
+  tournamentName: string;
+  partner: string;
+  category: PairCategory;
+  level: PairLevel;
+}
+
+export interface PlayerProfile extends Player {
+  participations: Participation[];
 }
 
 export interface Tournament {

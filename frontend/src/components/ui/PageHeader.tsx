@@ -1,37 +1,41 @@
-import type { ReactNode } from 'react';
-import { theme } from '../../theme';
+import { Fragment, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import { Icon } from './Icon';
+
+export interface Crumb {
+  label: string;
+  to?: string;
+}
 
 interface PageHeaderProps {
-  title: string;
-  subtitle?: ReactNode;
-  onBack?: () => void;
-  backLabel?: string;
+  title: ReactNode;
+  description?: ReactNode;
+  meta?: ReactNode;
+  breadcrumbs?: Crumb[];
   actions?: ReactNode;
 }
 
-export function PageHeader({ title, subtitle, onBack, backLabel = 'Volver', actions }: PageHeaderProps) {
+export function PageHeader({ title, description, meta, breadcrumbs, actions }: PageHeaderProps) {
   return (
-    <div style={{
-      display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-      marginBottom: '28px', gap: '16px', flexWrap: 'wrap',
-    }}>
-      <div>
-        {onBack && (
-          <button
-            onClick={onBack}
-            className="btn-ghost"
-            style={{
-              background: 'none', border: 'none', color: theme.color.primary, cursor: 'pointer',
-              fontSize: '13px', padding: '0 0 10px', fontWeight: 600,
-            }}
-          >
-            ← {backLabel}
-          </button>
-        )}
-        <h1 style={{ color: theme.color.text, margin: 0, fontSize: '26px', fontWeight: 700 }}>{title}</h1>
-        {subtitle && <div style={{ marginTop: '8px' }}>{subtitle}</div>}
+    <>
+      {breadcrumbs && breadcrumbs.length > 0 && (
+        <nav className="breadcrumbs" aria-label="Ruta de navegación">
+          {breadcrumbs.map((c, i) => (
+            <Fragment key={i}>
+              {i > 0 && <Icon name="chevronRight" size={14} />}
+              {c.to ? <Link to={c.to}>{c.label}</Link> : <span className="current">{c.label}</span>}
+            </Fragment>
+          ))}
+        </nav>
+      )}
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">{title}</h1>
+          {description && <p className="page-description">{description}</p>}
+          {meta && <div className="page-meta">{meta}</div>}
+        </div>
+        {actions && <div className="page-actions">{actions}</div>}
       </div>
-      {actions && <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>{actions}</div>}
-    </div>
+    </>
   );
 }

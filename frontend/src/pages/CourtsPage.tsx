@@ -1,29 +1,33 @@
-import { useEffect, useState, type CSSProperties } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { createCourt, deleteCourt, getCourts } from '../api/courts';
 import { useAuth } from '../context/AuthContext';
+import { useTournament } from '../hooks/useTournament';
 import { Layout } from '../components/Layout';
-import { Button, Card, EmptyState, Input, PageHeader, Spinner } from '../components/ui';
-import { theme } from '../theme';
+import { TournamentHeader, TournamentPlaceholder } from '../components/TournamentHeader';
+import { Alert, Button, Card, CardHeader, EmptyState, IconButton, LoadingBlock, useFeedback } from '../components/ui';
 import type { Court } from '../types';
 
 export function CourtsPage() {
   const { id } = useParams<{ id: string }>();
   const { token } = useAuth();
-  const navigate = useNavigate();
+  const { confirm, toast } = useFeedback();
+  const { tournament, notFound } = useTournament(id);
   const [courts, setCourts] = useState<Court[]>([]);
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => { loadCourts(); }, [token, id]);
-
-  const loadCourts = () => {
+  const loadCourts = useCallback(() => {
     if (!token || !id) return;
-    setLoading(true);
-    getCourts(id, token).then(setCourts).catch(console.error).finally(() => setLoading(false));
-  };
+    getCourts(id, token)
+      .then(setCourts)
+      .catch(err => toast(err instanceof Error ? err.message : 'Error al obtener las canchas', 'error'))
+      .finally(() => setLoading(false));
+  }, [token, id, toast]);
+
+  useEffect(loadCourts, [loadCourts]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +37,7 @@ export function CourtsPage() {
     try {
       await createCourt(id, name.trim(), token);
       setName('');
+      toast('Cancha agregada');
       loadCourts();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al crear la cancha');
@@ -41,65 +46,64 @@ export function CourtsPage() {
     }
   };
 
-  const handleDelete = async (courtId: string) => {
+  const handleDelete = async (court: Court) => {
     if (!token || !id) return;
-    setError('');
+    const ok = await confirm({ title: `Eliminar "${court.name}"`, message: 'La cancha dejará de usarse al generar el fixture.' });
+    if (!ok) return;
     try {
-      await deleteCourt(id, courtId, token);
+      await deleteCourt(id, court.id, token);
+      toast('Cancha eliminada');
       loadCourts();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al eliminar la cancha');
+      toast(err instanceof Error ? err.message : 'Error al eliminar la cancha', 'error');
     }
   };
 
+  if (!tournament) {
+    return <Layout><TournamentPlaceholder notFound={notFound} /></Layout>;
+  }
+
   return (
     <Layout>
-      <div style={s.wrap}>
-        <PageHeader
-          title="Canchas"
-          onBack={() => navigate(`/tournaments/${id}`)}
-          backLabel="Torneo"
-          subtitle={<p style={s.sub}>Las canchas cargadas acá son la capacidad real que usa el algoritmo para armar el fixture.</p>}
-        />
+      <TournamentHeader tournament={tournament} counts={loading ? {} : { courts: courts.length }} />
 
-        <Card padding="20px" style={{ marginBottom: '20px' }}>
-          <form onSubmit={handleAdd} style={s.form}>
-            <Input value={name} onChange={e => setName(e.target.value)} placeholder="Ej: Cancha 1" required />
-            <Button type="submit" disabled={submitting}>{submitting ? 'Agregando...' : '+ Agregar'}</Button>
+      <div style={{ maxWidth: 720, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <Card>
+          <CardHeader
+            title="Agregar cancha"
+            subtitle="Las canchas cargadas son la capacidad real que usa el algoritmo para armar el fixture."
+          />
+          <form onSubmit={handleAdd} className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="input-group">
+              <input className="input" value={name} onChange={e => setName(e.target.value)}
+                placeholder="Ej: Cancha 1" required aria-label="Nombre de la cancha" />
+              <Button type="submit" icon="plus" loading={submitting}>Agregar</Button>
+            </div>
+            {error && <Alert>{error}</Alert>}
           </form>
-          {error && <p style={s.error}>{error}</p>}
         </Card>
 
-        {loading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}><Spinner /></div>
-        ) : courts.length === 0 ? (
-          <EmptyState title="No hay canchas cargadas" description="Agregá al menos una para poder generar el fixture." />
-        ) : (
-          <div style={s.grid}>
-            {courts.map(c => (
-              <Card key={c.id} padding="16px 20px" style={s.courtCard}>
-                <span style={s.courtName}>🎾 {c.name}</span>
-                <button onClick={() => handleDelete(c.id)} className="btn-danger" style={s.deleteBtn} title="Eliminar cancha">✕</button>
-              </Card>
-            ))}
-          </div>
-        )}
+        <Card>
+          <CardHeader title="Canchas disponibles" subtitle={loading ? undefined : `${courts.length} en total`} />
+          {loading ? <LoadingBlock /> : courts.length === 0 ? (
+            <EmptyState
+              icon="court"
+              title="No hay canchas cargadas"
+              description="Agregá al menos una para poder generar el fixture."
+            />
+          ) : (
+            <ul className="court-list">
+              {courts.map((c, i) => (
+                <li key={c.id} className="court-item">
+                  <span className="court-index">{i + 1}</span>
+                  <span className="court-name">{c.name}</span>
+                  <IconButton icon="trash" label="Eliminar cancha" danger onClick={() => handleDelete(c)} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
       </div>
     </Layout>
   );
 }
-
-const s: Record<string, CSSProperties> = {
-  wrap: { maxWidth: '640px' },
-  sub: { color: theme.color.textFaint, fontSize: '14px', margin: 0, maxWidth: '480px' },
-  form: { display: 'flex', gap: '10px' },
-  error: { color: theme.color.danger, fontSize: '13px', margin: '10px 0 0' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' },
-  courtCard: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-  courtName: { color: theme.color.text, fontSize: '14px', fontWeight: 600 },
-  deleteBtn: {
-    background: 'transparent', border: `1px solid ${theme.color.border}`, color: theme.color.textFaint,
-    width: '26px', height: '26px', borderRadius: theme.radius.sm, cursor: 'pointer', fontSize: '12px',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s ease',
-  },
-};

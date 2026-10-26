@@ -1,38 +1,45 @@
 import type { InputHTMLAttributes } from 'react';
-import { theme } from '../../theme';
+import { Icon } from './Icon';
 
 interface CheckboxProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string;
 }
 
-export function Checkbox({ label, checked, style, ...rest }: CheckboxProps) {
+export function Checkbox({ label, checked, ...rest }: CheckboxProps) {
   return (
-    <label
-      className="ui-checkbox-card"
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        padding: '10px 14px',
-        borderRadius: theme.radius.sm,
-        border: `1px solid ${checked ? theme.color.primary : theme.color.border}`,
-        background: checked ? theme.color.primaryDim : theme.color.bgInput,
-        color: checked ? theme.color.primaryStrong : theme.color.textMuted,
-        cursor: 'pointer',
-        fontSize: '13px',
-        fontWeight: 500,
-        transition: 'all 0.15s ease',
-        userSelect: 'none',
-        ...style,
-      }}
-    >
-      <input
-        type="checkbox"
-        checked={checked}
-        style={{ accentColor: theme.color.primary, width: '15px', height: '15px', cursor: 'pointer' }}
-        {...rest}
-      />
+    <label className={`choice${checked ? ' checked' : ''}`}>
+      <input type="checkbox" checked={checked} {...rest} />
+      <span className="choice-box">{checked && <Icon name="check" size={12} strokeWidth={3} />}</span>
       {label}
     </label>
+  );
+}
+
+interface SegmentedProps<T extends string> {
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (value: T) => void;
+  label?: string;
+}
+
+export function Segmented<T extends string>({ value, options, onChange, label }: SegmentedProps<T>) {
+  return (
+    <div className="field">
+      {label && <span className="field-label">{label}</span>}
+      <div className="segmented" role="radiogroup" aria-label={label}>
+        {options.map(o => (
+          <button
+            key={o.value}
+            type="button"
+            role="radio"
+            aria-checked={o.value === value}
+            className={`segment${o.value === value ? ' active' : ''}`}
+            onClick={() => onChange(o.value)}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

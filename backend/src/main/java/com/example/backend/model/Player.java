@@ -17,4 +17,8 @@ public class Player {
 
     @Column(nullable = false)
     private String lastName;
+
+    private String email;
+
+    private String phone;
 }

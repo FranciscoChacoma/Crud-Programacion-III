@@ -1,41 +1,35 @@
-import { useState, useEffect, type CSSProperties } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createPair, getPair, updatePair } from '../api/pairs';
-import { getTournaments } from '../api/tournaments';
 import { useAuth } from '../context/AuthContext';
+import { useTournament } from '../hooks/useTournament';
 import { Layout } from '../components/Layout';
 import { PlayerAutocomplete } from '../components/PlayerAutocomplete';
-import { Button, Card, Checkbox, Input, PageHeader, Select } from '../components/ui';
-import { categoryLabel, scheduleLabel, theme } from '../theme';
-import type { PairLevel, PairSchedule, Tournament } from '../types';
-
-const CATEGORIES = ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8'];
-const SCHEDULES: PairSchedule[] = ['H09_12', 'H12_15', 'H15_18', 'H18_21'];
+import {
+  Alert, Button, Card, Checkbox, Input, LoadingBlock, PageHeader, Segmented, Select, useFeedback,
+} from '../components/ui';
+import { CATEGORIES, LEVELS, SCHEDULES, categoryLabel, levelLabel, scheduleLabel } from '../theme';
+import type { PairLevel, PairSchedule } from '../types';
 
 export function PairRegistrationPage() {
   const { id, pairId } = useParams<{ id: string; pairId?: string }>();
   const isEdit = !!pairId;
   const { token } = useAuth();
   const navigate = useNavigate();
-  const [tournament, setTournament] = useState<Tournament | null>(null);
+  const { toast } = useFeedback();
+  const { tournament } = useTournament(id);
   const [player1Name, setPlayer1Name] = useState('');
   const [player1LastName, setPlayer1LastName] = useState('');
   const [player2Name, setPlayer2Name] = useState('');
   const [player2LastName, setPlayer2LastName] = useState('');
-  const [category, setCategory] = useState('A1');
+  // Empty until the user picks one (or edit mode loads it); new pairs default to the tournament's category.
+  const [pickedCategory, setCategory] = useState('');
+  const category = pickedCategory || tournament?.category || 'A1';
   const [level, setLevel] = useState<PairLevel>('MEDIO');
   const [availableSchedules, setAvailableSchedules] = useState<PairSchedule[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingPair, setLoadingPair] = useState(isEdit);
-
-  useEffect(() => {
-    if (!token || !id) return;
-    getTournaments(token).then(list => {
-      const t = list.find((t: Tournament) => t.id === id);
-      if (t) { setTournament(t); if (!isEdit) setCategory(t.category); }
-    });
-  }, [token, id]);
 
   useEffect(() => {
     if (!token || !pairId) return;
@@ -60,7 +54,7 @@ export function PairRegistrationPage() {
     e.preventDefault();
     if (!token || !id) return;
     if (availableSchedules.length < 2) {
-      setError('Seleccioná al menos 2 horarios disponibles: con uno solo (3 horas) no alcanza para jugar los 3 partidos mínimos de 1:30 c/u');
+      setError('Seleccioná al menos 2 horarios disponibles: con uno solo (3 horas) no alcanza para jugar los 3 partidos mínimos de 1:30 c/u.');
       return;
     }
     setError('');
@@ -70,8 +64,10 @@ export function PairRegistrationPage() {
     try {
       if (isEdit && pairId) {
         await updatePair(pairId, data, token);
+        toast('Pareja actualizada');
       } else {
         await createPair(data, token);
+        toast('Pareja inscripta');
       }
       navigate(`/tournaments/${id}`);
     } catch (err) {
@@ -81,87 +77,93 @@ export function PairRegistrationPage() {
     }
   };
 
+  const title = isEdit ? 'Editar pareja' : 'Inscribir pareja';
+
   return (
-    <Layout>
-      <div style={s.wrap}>
-        <PageHeader
-          title={isEdit ? 'Editar Pareja' : 'Inscribir Pareja'}
-          onBack={() => navigate(`/tournaments/${id}`)}
-          backLabel="Torneo"
-          subtitle={tournament && <p style={s.sub}>Torneo: <strong style={{ color: theme.color.primary }}>{tournament.name}</strong></p>}
-        />
-        <Card>
-          {loadingPair ? (
-            <p style={{ color: theme.color.textFaint, margin: 0 }}>Cargando...</p>
-          ) : (
-          <form onSubmit={handleSubmit} style={s.form}>
-            <div style={s.section}>
-              <p style={s.sectionTitle}>Jugador 1</p>
-              <div style={s.row}>
-                <PlayerAutocomplete label="Nombre" value={player1Name} onChange={setPlayer1Name} />
-                <Input label="Apellido" value={player1LastName}
-                  onChange={e => setPlayer1LastName(e.target.value)} required placeholder="Apellido" />
-              </div>
-            </div>
+    <Layout narrow>
+      <PageHeader
+        breadcrumbs={[
+          { label: 'Torneos', to: '/dashboard' },
+          { label: tournament?.name ?? 'Torneo', to: `/tournaments/${id}` },
+          { label: title },
+        ]}
+        title={title}
+        description="Cargá los jugadores, el nivel de la pareja y los horarios en los que pueden jugar."
+      />
+      <Card>
+        {loadingPair ? <LoadingBlock /> : (
+          <form onSubmit={handleSubmit}>
+            <div className="card-body form">
+              <section className="form-section">
+                <div className="form-section-head">
+                  <h2 className="form-section-title">Jugador 1</h2>
+                </div>
+                <div className="form-row">
+                  <PlayerAutocomplete label="Nombre" value={player1Name} onChange={setPlayer1Name}
+                    onSelect={(_, lastName) => setPlayer1LastName(lastName)} />
+                  <Input label="Apellido" value={player1LastName}
+                    onChange={e => setPlayer1LastName(e.target.value)} required placeholder="Apellido" />
+                </div>
+              </section>
 
-            <div style={s.section}>
-              <p style={s.sectionTitle}>Jugador 2</p>
-              <div style={s.row}>
-                <PlayerAutocomplete label="Nombre" value={player2Name} onChange={setPlayer2Name} />
-                <Input label="Apellido" value={player2LastName}
-                  onChange={e => setPlayer2LastName(e.target.value)} required placeholder="Apellido" />
-              </div>
-            </div>
+              <section className="form-section">
+                <div className="form-section-head">
+                  <h2 className="form-section-title">Jugador 2</h2>
+                </div>
+                <div className="form-row">
+                  <PlayerAutocomplete label="Nombre" value={player2Name} onChange={setPlayer2Name}
+                    onSelect={(_, lastName) => setPlayer2LastName(lastName)} />
+                  <Input label="Apellido" value={player2LastName}
+                    onChange={e => setPlayer2LastName(e.target.value)} required placeholder="Apellido" />
+                </div>
+              </section>
 
-            <div style={s.row}>
-              <Select label="Categoría" value={category} onChange={e => setCategory(e.target.value)}>
-                {CATEGORIES.map(c => <option key={c} value={c}>{categoryLabel[c]}</option>)}
-              </Select>
-              <Select label="Nivel" value={level} onChange={e => setLevel(e.target.value as PairLevel)}>
-                <option value="ALTO">Alto</option>
-                <option value="MEDIO">Medio</option>
-                <option value="BAJO">Bajo</option>
-              </Select>
-            </div>
-
-            <div style={s.section}>
-              <p style={s.sectionTitle}>Horarios disponibles</p>
-              <p style={s.hint}>Elegí al menos 2 horarios: con uno solo (3 horas) no alcanza para jugar los 3 partidos mínimos de 1:30 c/u.</p>
-              <div style={s.scheduleGrid}>
-                {SCHEDULES.map(slot => (
-                  <Checkbox
-                    key={slot}
-                    label={scheduleLabel[slot]}
-                    checked={availableSchedules.includes(slot)}
-                    onChange={() => toggleSchedule(slot)}
+              <section className="form-section">
+                <div className="form-section-head">
+                  <h2 className="form-section-title">Clasificación</h2>
+                  <p className="form-section-desc">El nivel se usa para armar grupos parejos.</p>
+                </div>
+                <div className="form-row">
+                  <Select label="Categoría" value={category} onChange={e => setCategory(e.target.value)}>
+                    {CATEGORIES.map(c => <option key={c} value={c}>{categoryLabel[c]} categoría</option>)}
+                  </Select>
+                  <Segmented<PairLevel>
+                    label="Nivel"
+                    value={level}
+                    onChange={setLevel}
+                    options={LEVELS.map(l => ({ value: l, label: levelLabel[l] }))}
                   />
-                ))}
-              </div>
-            </div>
+                </div>
+              </section>
 
-            {error && <p style={s.error}>{error}</p>}
-            <Button type="submit" disabled={loading} fullWidth>
-              {loading ? 'Guardando...' : isEdit ? 'Guardar Cambios' : 'Inscribir Pareja'}
-            </Button>
+              <section className="form-section">
+                <div className="form-section-head">
+                  <h2 className="form-section-title">Horarios disponibles</h2>
+                  <p className="form-section-desc">
+                    Elegí al menos 2 franjas: con una sola (3 horas) no alcanza para los 3 partidos mínimos de 1:30 c/u.
+                  </p>
+                </div>
+                <div className="choices">
+                  {SCHEDULES.map(slot => (
+                    <Checkbox
+                      key={slot}
+                      label={scheduleLabel[slot]}
+                      checked={availableSchedules.includes(slot)}
+                      onChange={() => toggleSchedule(slot)}
+                    />
+                  ))}
+                </div>
+              </section>
+
+              {error && <Alert>{error}</Alert>}
+            </div>
+            <div className="card-footer">
+              <Button variant="secondary" onClick={() => navigate(`/tournaments/${id}`)}>Cancelar</Button>
+              <Button type="submit" loading={loading}>{isEdit ? 'Guardar cambios' : 'Inscribir pareja'}</Button>
+            </div>
           </form>
-          )}
-        </Card>
-      </div>
+        )}
+      </Card>
     </Layout>
   );
 }
-
-const s: Record<string, CSSProperties> = {
-  wrap: { maxWidth: '620px' },
-  sub: { color: theme.color.textFaint, fontSize: '14px', margin: 0 },
-  form: { display: 'flex', flexDirection: 'column', gap: '22px' },
-  section: { display: 'flex', flexDirection: 'column', gap: '10px' },
-  sectionTitle: {
-    color: theme.color.primary, fontSize: '12px', fontWeight: 700, margin: 0,
-    textTransform: 'uppercase', letterSpacing: '0.6px',
-  },
-  row: { display: 'flex', gap: '16px' },
-  hint: { color: theme.color.textFaint, fontSize: '12px', margin: 0 },
-  scheduleGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px' },
-  error: { color: theme.color.danger, fontSize: '13px', margin: 0 },
-};
