@@ -32,7 +32,7 @@ export function AuthLayout({ title, subtitle, children, footer }: Props) {
             ))}
           </div>
         </div>
-        <p className="auth-copy">© {new Date().getFullYear()} PadelPro</p>
+        <p className="auth-copy">© {new Date().getFullYear()} PadelSync</p>
       </aside>
       <main className="auth-main">
         <div className="auth-panel">

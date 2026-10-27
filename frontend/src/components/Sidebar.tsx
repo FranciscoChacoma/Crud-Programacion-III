@@ -8,7 +8,7 @@ export function Brand({ tagline = true }: { tagline?: boolean }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
       <BrandMark />
       <div>
-        <div className="brand-name">PadelPro</div>
+        <div className="brand-name">PadelSync</div>
         {tagline && <div className="brand-tag">Gestión de torneos</div>}
       </div>
     </div>
