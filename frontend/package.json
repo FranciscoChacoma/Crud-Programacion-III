@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "test:uat": "playwright test",
     "test:uat:demo": "playwright test --headed",
+    "test:uat:ui": "playwright test --ui",
     "test:uat:report": "playwright show-report"
   },
   "dependencies": {
