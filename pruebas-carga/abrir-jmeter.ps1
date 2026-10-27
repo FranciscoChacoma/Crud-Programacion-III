@@ -1,5 +1,5 @@
-# Abre la interfaz grafica de JMeter con el plan de prueba ya cargado
-# y el UUID del torneo de prueba (torneo.properties).
+# Abre la interfaz grafica de JMeter con el plan de prueba ya cargado.
+# El plan crea solo su organizador y su torneo al apretar Start (no hace falta preparar nada).
 #
 # Uso:  powershell -ExecutionPolicy Bypass -File .\abrir-jmeter.ps1
 #       powershell -ExecutionPolicy Bypass -File .\abrir-jmeter.ps1 -Usuarios 50 -RampUp 10
@@ -10,11 +10,6 @@ param(
 )
 
 $aqui = $PSScriptRoot
-$props = Join-Path $aqui "torneo.properties"
-if (-not (Test-Path $props)) {
-    & (Join-Path $aqui "preparar-torneo.ps1")
-    if (-not (Test-Path $props)) { exit 1 }
-}
 
 $candidatos = @("C:\jmeter\bin\jmeter.bat")
 $candidatos += Get-ChildItem "C:\jmeter\apache-jmeter-*\bin\jmeter.bat" -ErrorAction SilentlyContinue | ForEach-Object FullName
@@ -27,4 +22,4 @@ if (-not $jmeter) {
 }
 
 # action_if_file_exists=APPEND evita el cartel de "el archivo ya existe" al apretar Start
-& $jmeter -t (Join-Path $aqui "inscripcion-parejas.jmx") -q $props "-Jusuarios=$Usuarios" "-Jrampup=$RampUp" "-Jresultcollector.action_if_file_exists=APPEND"
+& $jmeter -t (Join-Path $aqui "inscripcion-parejas.jmx") "-Jusuarios=$Usuarios" "-Jrampup=$RampUp" "-Jresultcollector.action_if_file_exists=APPEND"

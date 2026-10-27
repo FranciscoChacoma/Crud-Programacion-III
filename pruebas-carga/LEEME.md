@@ -2,8 +2,10 @@
 
 Esta prueba mide qué pasa cuando muchas personas inscriben parejas **al mismo tiempo**, como cuando se abre la inscripción a un torneo popular.
 
-- **Endpoint probado:** `POST http://localhost:8080/api/pairs`
-- **Autenticación:** no hace falta, porque el endpoint no la pide.
+El plan es **autónomo**: al apretar Start, primero crea solo un organizador y un torneo de 3ra nuevos, y después todos los usuarios virtuales inscriben parejas en ese torneo. No hay que preparar nada antes.
+
+- **Paso 1, preparación (1 vez por corrida):** `POST /api/auth/register` (crea el organizador `jmeter@prueba.local` si no existe), `POST /api/auth/login` (obtiene su token) y `POST /api/tournaments` (crea el torneo "Torneo Prueba Carga JMeter <fecha>" con ese token).
+- **Paso 2, endpoint probado:** `POST http://localhost:8080/api/pairs`. Cada pareja lleva nombre, apellido, email y categoría de los dos jugadores (uno de 3ra y otro de 4ta, válidos para un torneo de 3ra), el nivel y 2 franjas horarias. Los jugadores se crean solos.
 - **Respuesta correcta:** `200 OK`
 
 ## Archivos
@@ -11,17 +13,16 @@ Esta prueba mide qué pasa cuando muchas personas inscriben parejas **al mismo t
 | Archivo | Para qué sirve |
 |---|---|
 | `inscripcion-parejas.jmx` | Plan de prueba de JMeter (se abre con la interfaz gráfica). |
-| `preparar-torneo.ps1` | Crea el torneo "Torneo Prueba Carga JMeter" y guarda su UUID en `torneo.properties`. |
-| `abrir-jmeter.ps1` | Abre JMeter con el plan y el torneo ya cargados. |
+| `abrir-jmeter.ps1` | Abre JMeter con el plan ya cargado. |
 | `correr-pruebas.ps1` | Corre la prueba sin interfaz con varias cantidades de usuarios y muestra la tabla final. |
-| `limpiar.sql` | Borra solo las inscripciones y los jugadores de prueba. El script lo ejecuta solo. |
+| `limpiar.sql` | Borra solo los torneos, organizadores y jugadores de prueba. El script lo ejecuta solo. |
 
 ## En una PC nueva
 
 Además de lo que ya usa el proyecto (Java, PostgreSQL con la base `padel_db` y Node para el frontend), hace falta:
 
 1. **JMeter 5.6.3**: descargar el `.zip` de https://jmeter.apache.org/download_jmeter.cgi y descomprimirlo en `C:\jmeter`. Los scripts también lo encuentran si está en el `PATH` o si existe la variable `JMETER_HOME`.
-2. Seguir los pasos de abajo. El paso 3 (`preparar-torneo.ps1`) es **obligatorio** en una PC nueva: crea el torneo en esa base y actualiza el UUID dentro del `.jmx`. Si se abre el `.jmx` directo sin ese paso, todas las peticiones dan 400.
+2. Nada más: el plan crea su propio organizador y torneo en la base de esa PC.
 
 ## Antes de empezar
 
@@ -29,10 +30,6 @@ Además de lo que ya usa el proyecto (Java, PostgreSQL con la base `padel_db` y 
 2. **Backend** levantado, desde la carpeta `backend`:
    ```powershell
    .\mvnw.cmd spring-boot:run
-   ```
-3. **Torneo de prueba**, una sola vez, desde la carpeta `pruebas-carga`:
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File .\preparar-torneo.ps1
    ```
 
 ## Demo en vivo (con interfaz)
@@ -43,19 +40,25 @@ powershell -ExecutionPolicy Bypass -File .\abrir-jmeter.ps1
 
 Qué mostrar en cada parte del árbol de la izquierda:
 
-1. **Usuarios inscribiendo parejas** (Thread Group):
+1. **1. Preparación: crear organizador y torneo** (setUp Thread Group): corre una sola vez, antes que todo.
+   - *POST /api/auth/register*: crea el organizador `jmeter@prueba.local` (si ya existe responde 400, y también se acepta).
+   - *POST /api/auth/login*: inicia sesión; el extractor JSON guarda el `token`.
+   - *POST /api/tournaments*: crea el torneo de 3ra mandando `Authorization: Bearer ${token}`; guarda su `id` y lo comparte con los usuarios del paso 2.
+2. **2. Usuarios inscribiendo parejas** (Thread Group):
    - *Number of Threads* = `${__P(usuarios,50)}`, es decir 50 usuarios virtuales (cada uno es una persona inscribiéndose).
    - *Ramp-up* = 10 segundos (los 50 usuarios arrancan repartidos en 10 segundos).
    - *Loop* = 1 (cada usuario inscribe una pareja).
-2. **HTTP Request Defaults:** `localhost`, puerto `8080`.
-3. **HTTP Header Manager:** `Content-Type: application/json`.
-4. **POST /api/pairs:** el JSON. `${__threadNum}` y `${__RandomString}` hacen que cada usuario mande jugadores distintos.
-5. **Verificar código 200 OK** (Response Assertion): si la respuesta no es 200, se cuenta como error.
-6. Apretar el botón verde **▶ Start**.
-7. **Summary Report:** mirar *Average* (tiempo promedio en ms), *Error %* y *Throughput* (peticiones por segundo).
-8. **View Results Tree:** cada petición aparece en verde (OK) o en rojo (error). Al hacer clic, la pestaña *Response data* muestra lo que respondió el backend.
+3. **HTTP Request Defaults:** `localhost`, puerto `8080`.
+4. **HTTP Header Manager:** `Content-Type: application/json`.
+5. **POST /api/pairs:** el JSON. `${__threadNum}` y `${__RandomString}` hacen que cada usuario mande jugadores distintos, con su email y su categoría.
+6. **Verificar código 200 OK** (Response Assertion): si la respuesta no es 200, se cuenta como error.
+7. Apretar el botón verde **▶ Start**.
+8. **Summary Report:** mirar *Average* (tiempo promedio en ms), *Error %* y *Throughput* (peticiones por segundo). Las dos filas de preparación aparecen una sola vez; la que importa es *POST /api/pairs*.
+9. **View Results Tree:** cada petición aparece en verde (OK) o en rojo (error). Al hacer clic, la pestaña *Response data* muestra lo que respondió el backend.
+10. Para mostrar el resultado en la app: cerrar sesión e iniciar con **jmeter@prueba.local / jmeter123**. Ahí aparece el torneo "Torneo Prueba Carga JMeter …" con todas las parejas que inscribió JMeter.
 
 > Entre una corrida y otra conviene limpiar los resultados en pantalla con el botón de la escoba (**Clear All**).
+
 
 ## Prueba completa (sin interfaz)
 
@@ -69,7 +72,7 @@ Prueba de estrés, con todos los usuarios llegando en 1 segundo. Es la que muest
 powershell -ExecutionPolicy Bypass -File .\correr-pruebas.ps1 -RampUp 1 -Usuarios "100,200,400,800,1600,3200"
 ```
 
-Antes de cada corrida el script borra las inscripciones de prueba anteriores y vuelve a borrar al terminar. Los resultados quedan en `resultados\<fecha>\`:
+Antes de cada corrida el script borra los torneos e inscripciones de prueba anteriores y vuelve a borrar al terminar. Los resultados quedan en `resultados\<fecha>\`:
 
 - `resumen.csv`: la tabla final.
 - `reporte-N-usuarios\index.html`: reporte con gráficos, ideal para mostrar.

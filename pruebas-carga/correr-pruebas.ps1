@@ -4,7 +4,7 @@
 # Uso:  powershell -ExecutionPolicy Bypass -File .\correr-pruebas.ps1
 #       powershell -ExecutionPolicy Bypass -File .\correr-pruebas.ps1 -Usuarios "10,50" -RampUp 1
 #
-# Requisitos: PostgreSQL y backend corriendo (puerto 8080), y haber corrido preparar-torneo.ps1
+# Requisitos: PostgreSQL y backend corriendo (puerto 8080). El plan crea solo su organizador y su torneo.
 
 param(
     [string]$Usuarios = "10,50,100,200,400",
@@ -18,7 +18,6 @@ param(
 $ErrorActionPreference = "Stop"
 $aqui = $PSScriptRoot
 $jmx = Join-Path $aqui "inscripcion-parejas.jmx"
-$props = Join-Path $aqui "torneo.properties"
 
 # --- Buscar JMeter ---
 if (-not $JMeter) {
@@ -42,15 +41,10 @@ if (-not $Psql) {
 
 # --- Verificar backend y torneo ---
 try {
-    Invoke-RestMethod "http://localhost:8080/api/tournaments" -TimeoutSec 5 | Out-Null
+    Invoke-RestMethod "http://localhost:8080/api/players" -TimeoutSec 5 | Out-Null
 } catch {
     Write-Host "El backend no responde en http://localhost:8080. Levantalo antes de correr la prueba." -ForegroundColor Red
     exit 1
-}
-if (-not (Test-Path $props)) {
-    Write-Host "No existe torneo.properties: corriendo preparar-torneo.ps1..."
-    & (Join-Path $aqui "preparar-torneo.ps1")
-    if (-not (Test-Path $props)) { exit 1 }
 }
 
 function Limpiar-Inscripciones {
@@ -65,7 +59,8 @@ function Limpiar-Inscripciones {
 }
 
 function Medir($jtl, $n) {
-    $filas = @(Import-Csv $jtl)
+    # Solo cuentan las inscripciones (no la preparacion: crear organizador y torneo)
+    $filas = @(Import-Csv $jtl | Where-Object { $_.label -like "POST /api/pairs*" })
     $total = $filas.Count
     if ($total -eq 0) { return $null }
 
@@ -107,7 +102,7 @@ foreach ($n in ($Usuarios -split "," | ForEach-Object { [int]$_.Trim() })) {
     $reporte = Join-Path $carpeta "reporte-$n-usuarios"
     $log = Join-Path $carpeta "$n-usuarios.log"
 
-    & $JMeter -n -t $jmx -q $props "-Jusuarios=$n" "-Jrampup=$RampUp" -l $jtl -e -o $reporte -j $log
+    & $JMeter -n -t $jmx "-Jusuarios=$n" "-Jrampup=$RampUp" -l $jtl -e -o $reporte -j $log
 
     if (Test-Path $jtl) {
         $fila = Medir $jtl $n
