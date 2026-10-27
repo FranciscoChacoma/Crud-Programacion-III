@@ -14,6 +14,7 @@ export function TournamentFormPage() {
   const [name, setName] = useState('');
   const [type, setType] = useState<TournamentType>('ESTANDAR');
   const [category, setCategory] = useState('A1');
+  const [startDate, setStartDate] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -23,7 +24,7 @@ export function TournamentFormPage() {
     setError('');
     setLoading(true);
     try {
-      const created = await createTournament(name, type, category, token);
+      const created = await createTournament({ name, type, category, startDate: startDate || null }, token);
       toast('Torneo creado');
       navigate(created?.id ? `/tournaments/${created.id}` : '/dashboard');
     } catch (err) {
@@ -38,7 +39,7 @@ export function TournamentFormPage() {
       <PageHeader
         breadcrumbs={[{ label: 'Torneos', to: '/dashboard' }, { label: 'Nuevo torneo' }]}
         title="Nuevo torneo"
-        description="Definí los datos básicos. Después vas a poder cargar canchas e inscribir parejas."
+        description="Definí los datos básicos. Después seguís paso a paso: parejas, sedes, fase de grupos y llaves."
       />
       <Card>
         <form onSubmit={handleSubmit}>
@@ -56,6 +57,9 @@ export function TournamentFormPage() {
                 {CATEGORIES.map(c => <option key={c} value={c}>{categoryLabel[c]} categoría</option>)}
               </Select>
             </div>
+            <Input label="Fecha (día de la fase de grupos)" type="date" value={startDate}
+              onChange={e => setStartDate(e.target.value)}
+              hint="Los grupos se juegan ese día (ej. sábado) y las llaves al día siguiente. Podés dejarla vacía." />
             {error && <Alert>{error}</Alert>}
           </div>
           <div className="card-footer">

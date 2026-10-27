@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { createPlayer, updatePlayer } from '../api/players';
-import { Alert, Button, Input, Modal, useFeedback } from './ui';
+import { Alert, Button, Input, Modal, Select, useFeedback } from './ui';
+import { CATEGORIES, categoryLabel } from '../theme';
 import type { Player, PlayerFormData } from '../types';
 
 interface Props {
@@ -16,6 +17,7 @@ export function PlayerFormModal({ player, onClose, onSaved }: Props) {
     lastName: player?.lastName ?? '',
     email: player?.email ?? '',
     phone: player?.phone ?? '',
+    category: player?.category ?? '',
   });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -62,6 +64,10 @@ export function PlayerFormModal({ player, onClose, onSaved }: Props) {
         </div>
         <Input label="Email" type="email" value={form.email} onChange={set('email')} placeholder="jugador@mail.com" hint="Opcional" />
         <Input label="Teléfono" type="tel" value={form.phone} onChange={set('phone')} placeholder="+54 9 261 555 1234" hint="Opcional" />
+        <Select label="Categoría" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+          <option value="">Sin definir</option>
+          {CATEGORIES.map(c => <option key={c} value={c}>{categoryLabel[c]} categoría</option>)}
+        </Select>
         {error && <Alert>{error}</Alert>}
       </form>
     </Modal>

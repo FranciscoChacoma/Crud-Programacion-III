@@ -6,7 +6,7 @@ import { Layout } from '../components/Layout';
 import {
   Badge, Button, Card, EmptyState, Icon, IconButton, LoadingBlock, PageHeader, Stat, useFeedback,
 } from '../components/ui';
-import { categoryLabel, typeLabel } from '../theme';
+import { categoryLabel, formatDate, stageLabel, stageTone } from '../theme';
 import type { Tournament } from '../types';
 
 export function DashboardPage() {
@@ -31,7 +31,8 @@ export function DashboardPage() {
     return q ? tournaments.filter(t => t.name.toLowerCase().includes(q)) : tournaments;
   }, [tournaments, query]);
 
-  const countByType = (type: Tournament['type']) => tournaments.filter(t => t.type === type).length;
+  const inProgress = tournaments.filter(t => t.stage === 'GRUPOS' || t.stage === 'LLAVES').length;
+  const finished = tournaments.filter(t => t.stage === 'FINALIZADO').length;
 
   const handleDelete = async (e: React.MouseEvent, t: Tournament) => {
     e.stopPropagation();
@@ -74,8 +75,8 @@ export function DashboardPage() {
         <>
           <div className="stats">
             <Stat label="Torneos" value={tournaments.length} icon="trophy" />
-            <Stat label="Estándar" value={countByType('ESTANDAR')} icon="layers" />
-            <Stat label="Americano" value={countByType('AMERICANO')} icon="refresh" />
+            <Stat label="En juego" value={inProgress} icon="zap" />
+            <Stat label="Finalizados" value={finished} icon="crown" />
           </div>
 
           <div className="toolbar">
@@ -122,9 +123,17 @@ export function DashboardPage() {
                   </div>
                   <h3 className="tcard-name">{t.name}</h3>
                   <div className="tcard-meta">
-                    <Badge tone="primary">Categoría {categoryLabel[t.category]}</Badge>
-                    <Badge>{typeLabel[t.type]}</Badge>
+                    <Badge tone={stageTone[t.stage]} dot>{stageLabel[t.stage]}</Badge>
+                    <Badge>Categoría {categoryLabel[t.category]}</Badge>
+                    <Badge>{t.pairCount} parejas</Badge>
                   </div>
+                  {(t.startDate || t.champion) && (
+                    <div className="tcard-info">
+                      {t.champion
+                        ? <><Icon name="crown" size={14} /> {t.champion}</>
+                        : <><Icon name="calendar" size={14} /> {formatDate(t.startDate!)}</>}
+                    </div>
+                  )}
                   <div className="tcard-foot">
                     Gestionar torneo <Icon name="arrowRight" size={16} />
                   </div>

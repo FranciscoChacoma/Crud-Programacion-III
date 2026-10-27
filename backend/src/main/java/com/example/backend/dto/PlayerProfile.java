@@ -9,6 +9,7 @@ public record PlayerProfile(
     String lastName,
     String email,
     String phone,
+    String category,
     List<Participation> participations
 ) {
     /** Una inscripción del jugador: en qué torneo, con quién y en qué condiciones. */

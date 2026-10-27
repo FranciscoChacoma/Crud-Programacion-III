@@ -1,23 +1,8 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { getCourts } from '../api/courts';
-import { getPairsByTournament } from '../api/pairs';
-import { useAuth } from '../context/AuthContext';
-import { Badge, Button, Card, EmptyState, Icon, LoadingBlock, PageHeader, type IconName } from './ui';
-import { categoryLabel, typeLabel } from '../theme';
+import { Badge, Button, Card, EmptyState, Icon, LoadingBlock, PageHeader } from './ui';
+import { categoryLabel, formatDate, stageLabel, stageTone, typeLabel } from '../theme';
 import type { Tournament } from '../types';
-
-interface Counts {
-  pairs?: number;
-  courts?: number;
-}
-
-interface Props {
-  tournament: Tournament;
-  actions?: ReactNode;
-  // Counts the current page already knows (and keeps up to date); they take precedence over the fetched ones.
-  counts?: Counts;
-}
 
 // Placeholder while the tournament loads, or when it doesn't exist / isn't the organizer's.
 export function TournamentPlaceholder({ notFound }: { notFound: boolean }) {
@@ -35,23 +20,46 @@ export function TournamentPlaceholder({ notFound }: { notFound: boolean }) {
   );
 }
 
-export function TournamentHeader({ tournament, actions, counts = {} }: Props) {
-  const { token } = useAuth();
-  const [fetched, setFetched] = useState<Counts>({});
+export type StepKey = 'pairs' | 'venues' | 'groups' | 'bracket';
 
-  useEffect(() => {
-    if (!token) return;
-    getPairsByTournament(tournament.id, token).then(p => setFetched(c => ({ ...c, pairs: p.length }))).catch(() => {});
-    getCourts(tournament.id, token).then(p => setFetched(c => ({ ...c, courts: p.length }))).catch(() => {});
-  }, [token, tournament.id]);
+interface Step {
+  key: StepKey;
+  to: string;
+  title: string;
+  detail: string;
+  done: boolean;
+  end?: boolean;
+}
 
-  const base = `/tournaments/${tournament.id}`;
-  const tabs: { to: string; label: string; icon: IconName; count?: number; end?: boolean }[] = [
-    { to: base, label: 'Parejas', icon: 'users', count: counts.pairs ?? fetched.pairs, end: true },
-    { to: `${base}/courts`, label: 'Canchas', icon: 'court', count: counts.courts ?? fetched.courts },
-    { to: `${base}/fixture`, label: 'Fixture', icon: 'calendar' },
+function tournamentSteps(t: Tournament): Step[] {
+  const base = `/tournaments/${t.id}`;
+  const groupsDone = t.groupMatches > 0 && t.playedGroupMatches === t.groupMatches;
+  return [
+    {
+      key: 'pairs', to: base, end: true, title: 'Parejas',
+      detail: t.pairCount === 1 ? '1 pareja' : `${t.pairCount} parejas`,
+      done: t.pairCount >= 2,
+    },
+    {
+      key: 'venues', to: `${base}/venues`, title: 'Sedes y canchas',
+      detail: t.courtCount ? `${t.venues.length} sede${t.venues.length === 1 ? '' : 's'} · ${t.courtCount} canchas` : 'Sin canchas',
+      done: t.courtCount > 0,
+    },
+    {
+      key: 'groups', to: `${base}/fixture`, title: 'Fase de grupos',
+      detail: t.groupMatches ? `${t.playedGroupMatches}/${t.groupMatches} resultados` : 'Sin generar',
+      done: groupsDone,
+    },
+    {
+      key: 'bracket', to: `${base}/bracket`, title: 'Llaves',
+      detail: t.champion ? `Campeón: ${t.champion}` : t.bracketMatches ? `${t.playedBracketMatches}/${t.bracketMatches} resultados` : 'Pendiente',
+      done: !!t.champion,
+    },
   ];
+}
 
+export function TournamentHeader({ tournament, actions }: { tournament: Tournament; actions?: ReactNode }) {
+  const steps = tournamentSteps(tournament);
   return (
     <>
       <PageHeader
@@ -59,21 +67,50 @@ export function TournamentHeader({ tournament, actions, counts = {} }: Props) {
         title={tournament.name}
         meta={
           <>
+            <Badge tone={stageTone[tournament.stage]} dot>{stageLabel[tournament.stage]}</Badge>
             <Badge tone="primary">Categoría {categoryLabel[tournament.category]}</Badge>
             <Badge>{typeLabel[tournament.type]}</Badge>
+            {tournament.startDate && (
+              <span className="page-meta-item"><Icon name="calendar" size={14} />{formatDate(tournament.startDate)}</span>
+            )}
           </>
         }
         actions={actions}
       />
-      <nav className="tabs">
-        {tabs.map(t => (
-          <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive }) => `tab${isActive ? ' active' : ''}`}>
-            <Icon name={t.icon} size={16} />
-            {t.label}
-            {t.count !== undefined && <span className="tab-count">{t.count}</span>}
+      <nav className="stepper" aria-label="Pasos del torneo">
+        {steps.map((s, i) => (
+          <NavLink key={s.key} to={s.to} end={s.end}
+            className={({ isActive }) => ['step', s.done && 'done', isActive && 'active'].filter(Boolean).join(' ')}>
+            <span className="step-num">{s.done ? <Icon name="check" size={14} strokeWidth={3} /> : i + 1}</span>
+            <span className="step-text">
+              <span className="step-title">{s.title}</span>
+              <span className="step-detail">{s.detail}</span>
+            </span>
           </NavLink>
         ))}
       </nav>
     </>
+  );
+}
+
+/** Pie de página que lleva al paso siguiente, para que el flujo tenga un orden claro. */
+export function NextStep({ tournament, current, hint }: { tournament: Tournament; current: StepKey; hint?: string }) {
+  const navigate = useNavigate();
+  const steps = tournamentSteps(tournament);
+  const idx = steps.findIndex(s => s.key === current);
+  const next = steps[idx + 1];
+  if (!next) return null;
+  const ready = steps[idx].done;
+  return (
+    <div className={`next-step${ready ? ' ready' : ''}`}>
+      <div>
+        <div className="next-step-label">{ready ? 'Paso completo' : 'Siguiente paso'}</div>
+        <div className="next-step-title">{idx + 2}. {next.title}</div>
+        {hint && <div className="next-step-hint">{hint}</div>}
+      </div>
+      <Button variant={ready ? 'primary' : 'secondary'} onClick={() => navigate(next.to)}>
+        Continuar <Icon name="arrowRight" size={16} />
+      </Button>
+    </div>
   );
 }

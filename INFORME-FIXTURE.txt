@@ -1,0 +1,124 @@
+PADELPRO - INFORME DEL ARMADO AUTOMATICO DE FIXTURE Y PRUEBAS
+==============================================================
+Fecha: 27/10/2026
+
+
+1. COMO FUNCIONA EL ARMADO AUTOMATICO
+-------------------------------------
+- El torneo se juega en dos dias: sabado fase de grupos, domingo llaves.
+- Cada partido dura 1:30. El dia se divide en 8 turnos (09:00, 10:30, 12:00,
+  13:30, 15:00, 16:30, 18:00 y 19:30). Cada franja de 3 horas = 2 turnos.
+- Cada pareja elige como minimo 2 franjas horarias.
+- Grupos de 4 parejas (o de 3 cuando no da la cuenta). Cada pareja juega 3 partidos.
+- Los grupos NO se arman por orden alfabetico: se arman juntando parejas que
+  comparten horarios, de forma que cada grupo pueda jugar todos sus partidos.
+  Ademas se intenta que los grupos queden parejos en nivel.
+- Despues se asigna cancha y turno a cada partido respetando:
+    * que las dos parejas esten disponibles en ese turno,
+    * que una pareja no juegue dos partidos al mismo tiempo,
+    * que no haya mas partidos que canchas en un mismo turno,
+    * que ninguna pareja juegue 3 partidos seguidos (2 seguidos si se permite).
+- Si algun partido no entra, NO se oculta: queda en "Sin horario" con el motivo,
+  y el organizador lo puede mover a mano arrastrandolo en la grilla horaria.
+  Si lo pone fuera de la franja de una pareja, o deja a alguien con 3 seguidos,
+  el partido queda marcado en naranja con el aviso.
+
+
+2. RESULTADO CON EL TORNEO REAL
+-------------------------------
+"Torneo agosto 2026" (16 parejas, 9 canchas):
+  - Sistema anterior: 13 de 24 partidos con horario.
+  - Sistema nuevo:    24 de 24 partidos con horario, sin conflictos.
+
+"Torneo Noviembre 2026" (16 parejas, 5 canchas):
+  - 24 de 24 partidos con horario y ninguna pareja con 3 partidos seguidos.
+
+
+3. PRUEBA DE ESTRES (cientos de torneos generados al azar)
+----------------------------------------------------------
+Escenario                                           Torneos perfectos (todos con horario)
+16 parejas, cada una con 2, 3 o 4 franjas, 5 canchas      200 de 200
+32 parejas, cada una con 2, 3 o 4 franjas, 8 canchas      200 de 200
+32 parejas, mezcla, solo 6 canchas                        167 de 200
+16 o 32 parejas, TODAS con solo 2 franjas                 aprox. 3%
+
+Tiempo de calculo: menos de 1 segundo por torneo.
+
+
+4. CUANDO PUEDE QUEDAR ALGUIEN SIN HORARIO (y por que no es culpa del sistema)
+-----------------------------------------------------------------------------
+a) Parejas que no se cruzan nunca.
+   Ejemplo: una pareja elige solo 09-12 y 12-15, y todas las demas eligen
+   15-18 y 18-21. Esa pareja no puede jugar contra nadie. Ningun sistema lo
+   resuelve: el programa avisa y el organizador decide a mano.
+
+b) Todas las parejas eligen el minimo de 2 franjas.
+   Matematicamente casi nunca existe una forma de armar grupos de 4 que puedan
+   jugar todo. Para comprobarlo se comparo el algoritmo contra una busqueda
+   EXHAUSTIVA (que prueba todas las formas posibles de armar los grupos):
+   la solucion perfecta existia en 6 de 200 casos, y el algoritmo encontro
+   esas 6. Es decir: cuando existe una solucion perfecta, el sistema la encuentra.
+   Esta comparacion quedo como test automatico del proyecto.
+
+c) Pocas canchas.
+   32 parejas = 48 partidos de grupo. Con 6 canchas hay exactamente 48 lugares
+   (6 canchas x 8 turnos), sin ningun margen. Con 8 canchas siempre entro todo.
+   Regla practica: canchas recomendadas = partidos / 6
+   (16 parejas -> 4 o 5 canchas; 32 parejas -> 8 canchas).
+   La pantalla de "Sedes y canchas" ya muestra esta recomendacion.
+
+
+5. 16 PAREJAS O 32 PAREJAS: CUAL ES MAS DIFICIL
+----------------------------------------------
+32 es MAS FACIL en cuanto a horarios: al haber mas parejas hay mas
+combinaciones para formar grupos compatibles. Solo necesita mas canchas.
+
+Conclusion: con inscripciones reales (mezcla de 2, 3 y 4 franjas) y canchas
+suficientes, es muy dificil quedarse sin horarios. El punto debil son las
+parejas que eligen solo 2 franjas: conviene sugerirles que elijan 3.
+
+
+6. VALIDACION DE CATEGORIA (UAT - Equipo 3)
+-------------------------------------------
+Regla: en un torneo de una categoria pueden jugar los jugadores de esa
+categoria y los de UNA categoria abajo. Vale para todas las categorias
+(torneo de 1ra: 1ra y 2da; torneo de 6ta: 6ta y 7ma; etc.).
+  Ejemplo torneo de 6ta: entran 6ta y 7ma. NO entran 5ta (superior),
+  ni 8va (dos abajo), ni ninguna otra.
+- Cada jugador tiene su categoria guardada en su perfil.
+- Al inscribir una pareja fuera de la regla, el sistema la rechaza con un
+  mensaje claro, por ejemplo:
+  "Diego Ruiz es de 5ta: en un torneo de 6ta solo pueden jugar jugadores de
+   6ta o de 7ma."
+- En la tabla del torneo, cada pareja valida muestra su badge de categoria en
+  VERDE (por ejemplo "6ta / 7ma").
+
+
+7. TEST AUTOMATICO DE ACEPTACION (Playwright)
+---------------------------------------------
+Archivo: frontend/e2e/inscripcion-parejas.spec.ts
+Que hace, solo, en el navegador:
+  1. Crea una cuenta de organizador.
+  2. Crea un torneo de 6ta.
+  3. Intenta inscribir un jugador de 5ta  -> verifica que lo rechaza.
+  4. Intenta con uno de 8va               -> verifica que lo rechaza.
+  5. Inscribe 4 parejas validas (6ta y 7ma) -> verifica el badge verde de cada una.
+  6. Carga una sede con 2 canchas.
+  7. Genera el fixture -> verifica el Grupo A con sus 6 partidos, todos con
+     horario, y la grilla horaria sin partidos pendientes.
+
+Como correrlo (con backend y frontend levantados), desde la carpeta frontend:
+  npm run test:uat          -> rapido, sin ver el navegador (unos 8 segundos)
+  npm run test:uat:demo     -> navegador visible y mas lento, ideal para la muestra
+  npm run test:uat:report   -> abre el reporte con capturas de cada paso
+
+Nota: cada ejecucion crea un organizador y un torneo nuevos en la base
+(se llaman "Organizador UAT" / "Torneo UAT 6ta ...").
+
+
+8. TESTS DEL ALGORITMO (JUnit)
+------------------------------
+Archivo: backend/src/test/java/com/example/backend/service/scheduling/FixtureSchedulerTest.java
+Verifican que ningun fixture generado tenga parejas en dos partidos a la vez,
+partidos fuera de la disponibilidad, mas partidos que canchas, ni 3 partidos
+seguidos cuando se puede evitar; y comparan contra la busqueda exhaustiva.

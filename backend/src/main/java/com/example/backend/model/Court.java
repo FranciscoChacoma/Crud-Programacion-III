@@ -1,7 +1,10 @@
 package com.example.backend.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 import java.util.UUID;
 
 @Entity
@@ -16,6 +19,9 @@ public class Court {
     private String name;
 
     @ManyToOne
-    @JoinColumn(name = "tournament_id", nullable = false)
-    private Tournament tournament;
+    @JoinColumn(name = "venue_id")
+    @JsonIgnore
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
+    private Venue venue;
 }

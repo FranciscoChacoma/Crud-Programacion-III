@@ -9,7 +9,46 @@ import {
   Alert, Button, Card, Checkbox, Input, LoadingBlock, PageHeader, Segmented, Select, useFeedback,
 } from '../components/ui';
 import { CATEGORIES, LEVELS, SCHEDULES, categoryLabel, levelLabel, scheduleLabel } from '../theme';
-import type { PairLevel, PairSchedule } from '../types';
+import type { PairLevel, PairSchedule, Player } from '../types';
+
+interface PlayerFields {
+  name: string;
+  lastName: string;
+  email: string;
+  category: string;
+}
+
+const EMPTY: PlayerFields = { name: '', lastName: '', email: '', category: '' };
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+function PlayerSection({ title, value, onChange, allowed }: {
+  title: string; value: PlayerFields; onChange: (v: PlayerFields) => void; allowed: string;
+}) {
+  const pick = (p: Player) => onChange({ name: p.name, lastName: p.lastName, email: p.email ?? value.email, category: p.category ?? value.category });
+  return (
+    <section className="form-section">
+      <div className="form-section-head">
+        <h2 className="form-section-title">{title}</h2>
+        <p className="form-section-desc">Buscalo entre los jugadores guardados o cargalo nuevo.</p>
+      </div>
+      <div className="form-row">
+        <PlayerAutocomplete label="Nombre" value={value.name} onChange={name => onChange({ ...value, name })} onSelect={pick} />
+        <Input label="Apellido" value={value.lastName} required placeholder="Apellido"
+          onChange={e => onChange({ ...value, lastName: e.target.value })} />
+      </div>
+      <div className="form-row">
+        <Input label="Email" type="email" value={value.email} required placeholder="jugador@mail.com"
+          hint="Se usa para mandarle sus partidos y la planilla del torneo."
+          onChange={e => onChange({ ...value, email: e.target.value })} />
+        <Select label="Categoría del jugador" value={value.category} required hint={allowed}
+          onChange={e => onChange({ ...value, category: e.target.value })}>
+          <option value="">Elegí la categoría</option>
+          {CATEGORIES.map(c => <option key={c} value={c}>{categoryLabel[c]} categoría</option>)}
+        </Select>
+      </div>
+    </section>
+  );
+}
 
 export function PairRegistrationPage() {
   const { id, pairId } = useParams<{ id: string; pairId?: string }>();
@@ -18,13 +57,8 @@ export function PairRegistrationPage() {
   const navigate = useNavigate();
   const { toast } = useFeedback();
   const { tournament } = useTournament(id);
-  const [player1Name, setPlayer1Name] = useState('');
-  const [player1LastName, setPlayer1LastName] = useState('');
-  const [player2Name, setPlayer2Name] = useState('');
-  const [player2LastName, setPlayer2LastName] = useState('');
-  // Empty until the user picks one (or edit mode loads it); new pairs default to the tournament's category.
-  const [pickedCategory, setCategory] = useState('');
-  const category = pickedCategory || tournament?.category || 'A1';
+  const [player1, setPlayer1] = useState<PlayerFields>(EMPTY);
+  const [player2, setPlayer2] = useState<PlayerFields>(EMPTY);
   const [level, setLevel] = useState<PairLevel>('MEDIO');
   const [availableSchedules, setAvailableSchedules] = useState<PairSchedule[]>([]);
   const [error, setError] = useState('');
@@ -34,11 +68,8 @@ export function PairRegistrationPage() {
   useEffect(() => {
     if (!token || !pairId) return;
     getPair(pairId, token).then(p => {
-      setPlayer1Name(p.player1.name);
-      setPlayer1LastName(p.player1.lastName);
-      setPlayer2Name(p.player2.name);
-      setPlayer2LastName(p.player2.lastName);
-      setCategory(p.category);
+      setPlayer1({ name: p.player1.name, lastName: p.player1.lastName, email: p.player1.email ?? '', category: p.player1.category ?? '' });
+      setPlayer2({ name: p.player2.name, lastName: p.player2.lastName, email: p.player2.email ?? '', category: p.player2.category ?? '' });
       setLevel(p.level);
       setAvailableSchedules(p.availableSchedules);
     }).catch(err => setError(err instanceof Error ? err.message : 'Error al cargar la pareja'))
@@ -54,13 +85,21 @@ export function PairRegistrationPage() {
     e.preventDefault();
     if (!token || !id) return;
     if (availableSchedules.length < 2) {
-      setError('Seleccioná al menos 2 horarios disponibles: con uno solo (3 horas) no alcanza para jugar los 3 partidos mínimos de 1:30 c/u.');
+      setError('Elegí al menos 2 franjas horarias: los 3 partidos de grupo (1:30 c/u) no entran en una sola franja de 3 horas.');
+      return;
+    }
+    const badEmail = [player1, player2].find(p => !EMAIL_RE.test(p.email.trim()));
+    if (badEmail) {
+      setError(`Revisá el email de ${badEmail.name || 'cada jugador'}.`);
       return;
     }
     setError('');
     setLoading(true);
-    const data = { player1Name, player1LastName, player2Name, player2LastName,
-      tournamentId: id, category, level, availableSchedules };
+    const data = {
+      player1Name: player1.name, player1LastName: player1.lastName, player1Email: player1.email, player1Category: player1.category,
+      player2Name: player2.name, player2LastName: player2.lastName, player2Email: player2.email, player2Category: player2.category,
+      tournamentId: id, category: '', level, availableSchedules,
+    };
     try {
       if (isEdit && pairId) {
         await updatePair(pairId, data, token);
@@ -78,6 +117,10 @@ export function PairRegistrationPage() {
   };
 
   const title = isEdit ? 'Editar pareja' : 'Inscribir pareja';
+  const franjas = availableSchedules.length;
+  // En un torneo de 6ta juegan los de 6ta y los de 7ma (vale igual para todas las categorías).
+  const tIdx = tournament ? CATEGORIES.indexOf(tournament.category) : -1;
+  const allowed = tIdx < 0 ? '' : `En este torneo: ${categoryLabel[CATEGORIES[tIdx]]}${CATEGORIES[tIdx + 1] ? ` o ${categoryLabel[CATEGORIES[tIdx + 1]]}` : ''}.`;
 
   return (
     <Layout narrow>
@@ -88,59 +131,33 @@ export function PairRegistrationPage() {
           { label: title },
         ]}
         title={title}
-        description="Cargá los jugadores, el nivel de la pareja y los horarios en los que pueden jugar."
+        description="Cargá los jugadores con su email, el nivel de la pareja y las franjas en las que pueden jugar el día de grupos."
       />
       <Card>
         {loadingPair ? <LoadingBlock /> : (
           <form onSubmit={handleSubmit}>
             <div className="card-body form">
+              <PlayerSection title="Jugador 1" value={player1} onChange={setPlayer1} allowed={allowed} />
+              <PlayerSection title="Jugador 2" value={player2} onChange={setPlayer2} allowed={allowed} />
+
               <section className="form-section">
                 <div className="form-section-head">
-                  <h2 className="form-section-title">Jugador 1</h2>
+                  <h2 className="form-section-title">Nivel</h2>
+                  <p className="form-section-desc">Se usa para que los grupos queden parejos.</p>
                 </div>
-                <div className="form-row">
-                  <PlayerAutocomplete label="Nombre" value={player1Name} onChange={setPlayer1Name}
-                    onSelect={(_, lastName) => setPlayer1LastName(lastName)} />
-                  <Input label="Apellido" value={player1LastName}
-                    onChange={e => setPlayer1LastName(e.target.value)} required placeholder="Apellido" />
-                </div>
+                <Segmented<PairLevel>
+                  value={level}
+                  onChange={setLevel}
+                  options={LEVELS.map(l => ({ value: l, label: levelLabel[l] }))}
+                />
               </section>
 
               <section className="form-section">
                 <div className="form-section-head">
-                  <h2 className="form-section-title">Jugador 2</h2>
-                </div>
-                <div className="form-row">
-                  <PlayerAutocomplete label="Nombre" value={player2Name} onChange={setPlayer2Name}
-                    onSelect={(_, lastName) => setPlayer2LastName(lastName)} />
-                  <Input label="Apellido" value={player2LastName}
-                    onChange={e => setPlayer2LastName(e.target.value)} required placeholder="Apellido" />
-                </div>
-              </section>
-
-              <section className="form-section">
-                <div className="form-section-head">
-                  <h2 className="form-section-title">Clasificación</h2>
-                  <p className="form-section-desc">El nivel se usa para armar grupos parejos.</p>
-                </div>
-                <div className="form-row">
-                  <Select label="Categoría" value={category} onChange={e => setCategory(e.target.value)}>
-                    {CATEGORIES.map(c => <option key={c} value={c}>{categoryLabel[c]} categoría</option>)}
-                  </Select>
-                  <Segmented<PairLevel>
-                    label="Nivel"
-                    value={level}
-                    onChange={setLevel}
-                    options={LEVELS.map(l => ({ value: l, label: levelLabel[l] }))}
-                  />
-                </div>
-              </section>
-
-              <section className="form-section">
-                <div className="form-section-head">
-                  <h2 className="form-section-title">Horarios disponibles</h2>
+                  <h2 className="form-section-title">Franjas horarias disponibles</h2>
                   <p className="form-section-desc">
-                    Elegí al menos 2 franjas: con una sola (3 horas) no alcanza para los 3 partidos mínimos de 1:30 c/u.
+                    Cada partido dura 1:30, así que en una franja de 3 horas entran 2 partidos. Con 2 franjas se juegan
+                    los 3 partidos de grupo (dos seguidos); con 3 o más hay lugar para descansar entre partidos.
                   </p>
                 </div>
                 <div className="choices">
@@ -153,6 +170,13 @@ export function PairRegistrationPage() {
                     />
                   ))}
                 </div>
+                {franjas > 0 && (
+                  <div className={`schedule-hint${franjas < 2 ? ' warn' : ''}`}>
+                    {franjas < 2 ? 'Elegí al menos una franja más.'
+                      : franjas === 2 ? 'Mínimo cumplido: van a jugar dos partidos seguidos.'
+                      : 'Buena disponibilidad: más fácil armar el fixture y con descanso entre partidos.'}
+                  </div>
+                )}
               </section>
 
               {error && <Alert>{error}</Alert>}

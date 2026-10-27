@@ -1,24 +1,22 @@
-import { useEffect, useState } from 'react';
-import { getTournaments } from '../api/tournaments';
+import { useCallback, useEffect, useState } from 'react';
+import { getTournament } from '../api/tournaments';
 import { useAuth } from '../context/AuthContext';
 import type { Tournament } from '../types';
 
-// The API has no GET /tournaments/:id, so we look it up in the organizer's list.
+// `reload` refreshes the step counters after changes (new pairs, results, etc.).
 export function useTournament(id: string | undefined) {
   const { token } = useAuth();
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [notFound, setNotFound] = useState(false);
 
-  useEffect(() => {
+  const reload = useCallback(() => {
     if (!token || !id) return;
-    getTournaments(token)
-      .then(list => {
-        const t = list.find(x => x.id === id) ?? null;
-        setTournament(t);
-        setNotFound(!t);
-      })
+    getTournament(id, token)
+      .then(t => { setTournament(t); setNotFound(false); })
       .catch(() => setNotFound(true));
   }, [token, id]);
 
-  return { tournament, notFound };
+  useEffect(reload, [reload]);
+
+  return { tournament, notFound, reload, setTournament };
 }

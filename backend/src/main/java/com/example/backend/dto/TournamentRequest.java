@@ -1,2 +1,5 @@
 package com.example.backend.dto;
-public record TournamentRequest(String name, String type, String category) {}
+
+import java.time.LocalDate;
+
+public record TournamentRequest(String name, String type, String category, LocalDate startDate) {}

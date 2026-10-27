@@ -5,21 +5,35 @@ import { deletePair, getPairsByTournament } from '../api/pairs';
 import { useAuth } from '../context/AuthContext';
 import { useTournament } from '../hooks/useTournament';
 import { Layout } from '../components/Layout';
-import { TournamentHeader, TournamentPlaceholder } from '../components/TournamentHeader';
+import { NextStep, TournamentHeader, TournamentPlaceholder } from '../components/TournamentHeader';
 import {
   Avatar, Badge, Button, Card, EmptyState, Icon, IconButton, LoadingBlock, Stat, Table, Td, Th, Tr, useFeedback,
 } from '../components/ui';
-import { LEVELS, categoryLabel, levelLabel, levelTone, scheduleShortLabel } from '../theme';
-import type { Pair, PairLevel } from '../types';
+import { CATEGORIES, LEVELS, categoryLabel, levelLabel, levelTone, scheduleShortLabel } from '../theme';
+import type { Pair, PairCategory, PairLevel } from '../types';
 
 const LEVEL_ORDER: Record<PairLevel, number> = { ALTO: 0, MEDIO: 1, BAJO: 2 };
+
+// Badge de categoría: verde cuando los dos jugadores pueden jugar el torneo (su categoría o una abajo).
+function CategoryBadge({ pair, tournamentCategory }: { pair: Pair; tournamentCategory: PairCategory }) {
+  const cats = [pair.player1.category, pair.player2.category];
+  if (cats.some(c => !c)) return <Badge>Sin categoría</Badge>;
+  const t = CATEGORIES.indexOf(tournamentCategory);
+  const valid = cats.every(c => { const d = CATEGORIES.indexOf(c!) - t; return d === 0 || d === 1; });
+  const label = [...new Set(cats.map(c => categoryLabel[c!]))].join(' / ');
+  return (
+    <span data-testid="category-badge" data-valid={valid}>
+      <Badge tone={valid ? 'success' : 'danger'} dot>{label}</Badge>
+    </span>
+  );
+}
 
 export function TournamentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { token } = useAuth();
   const navigate = useNavigate();
   const { confirm, toast } = useFeedback();
-  const { tournament, notFound } = useTournament(id);
+  const { tournament, notFound, reload } = useTournament(id);
   const [pairs, setPairs] = useState<Pair[]>([]);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [query, setQuery] = useState('');
@@ -78,6 +92,7 @@ export function TournamentDetailPage() {
     try {
       await deletePair(pair.id, token);
       setPairs(prev => prev.filter(p => p.id !== pair.id));
+      reload();
       toast('Pareja eliminada');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Error al eliminar la pareja', 'error');
@@ -96,7 +111,6 @@ export function TournamentDetailPage() {
     <Layout>
       <TournamentHeader
         tournament={tournament}
-        counts={loading ? {} : { pairs: pairs.length }}
         actions={
           <>
             <Button variant="secondary" icon="trash" onClick={handleDeleteTournament}>Eliminar</Button>
@@ -168,12 +182,20 @@ export function TournamentDetailPage() {
                         <Avatar name={p.player2.name} lastName={p.player2.lastName} />
                       </span>
                       <div>
-                        <div className="person-name">{p.player1.name} {p.player1.lastName}</div>
-                        <div className="person-name">{p.player2.name} {p.player2.lastName}</div>
+                        {[p.player1, p.player2].map((pl, idx) => (
+                          <div key={idx} className="person-name person-line">
+                            {pl.name} {pl.lastName}
+                            {!pl.email && (
+                              <span className="no-email" title="Sin email: no va a recibir la planilla">
+                                <Icon name="mail" size={12} />
+                              </span>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </Td>
-                  <Td>{categoryLabel[p.category]}</Td>
+                  <Td><CategoryBadge pair={p} tournamentCategory={tournament.category} /></Td>
                   <Td><Badge tone={levelTone[p.level]} dot>{levelLabel[p.level]}</Badge></Td>
                   <Td>
                     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
@@ -191,6 +213,11 @@ export function TournamentDetailPage() {
             </tbody>
           </Table>
         </>
+      )}
+
+      {!loading && (
+        <NextStep tournament={tournament} current="pairs"
+          hint={pairs.length < 2 ? 'Inscribí al menos 2 parejas.' : 'Elegí en qué sedes y canchas se juega.'} />
       )}
     </Layout>
   );

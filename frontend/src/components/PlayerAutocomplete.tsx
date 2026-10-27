@@ -1,12 +1,13 @@
 import { useEffect, useId, useState } from 'react';
 import { usePlayerSearch } from '../hooks/usePlayerSearch';
 import { Avatar, Spinner } from './ui';
+import type { Player } from '../types';
 
 interface Props {
   label: string;
   value: string;
   onChange: (name: string) => void;
-  onSelect?: (name: string, lastName: string) => void;
+  onSelect?: (player: Player) => void;
 }
 
 export function PlayerAutocomplete({ label, value, onChange, onSelect }: Props) {
@@ -49,7 +50,7 @@ export function PlayerAutocomplete({ label, value, onChange, onSelect }: Props) 
                 onMouseDown={() => {
                   setQuery(p.name);
                   onChange(p.name);
-                  onSelect?.(p.name, p.lastName);
+                  onSelect?.(p);
                   setOpen(false);
                 }}
               >

@@ -34,6 +34,14 @@ public class JwtService {
             .getSubject();
     }
 
+    public String emailFromHeader(String authHeader) {
+        try {
+            return extractEmail(authHeader.replace("Bearer ", ""));
+        } catch (Exception e) {
+            throw new RuntimeException("Tu sesión venció. Volvé a iniciar sesión.");
+        }
+    }
+
     public boolean isValid(String token) {
         try {
             extractEmail(token);

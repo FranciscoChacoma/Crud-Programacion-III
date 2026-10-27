@@ -6,6 +6,7 @@ import { PlayerFormModal } from '../components/PlayerFormModal';
 import {
   Avatar, Badge, Button, Card, EmptyState, Icon, IconButton, LoadingBlock, PageHeader, Stat, Table, Td, Th, Tr, useFeedback,
 } from '../components/ui';
+import { categoryLabel } from '../theme';
 import type { PlayerProfile } from '../types';
 
 export function PlayersPage() {
@@ -93,13 +94,14 @@ export function PlayersPage() {
                 <Th>Jugador</Th>
                 <Th>Email</Th>
                 <Th>Teléfono</Th>
+                <Th>Categoría</Th>
                 <Th>Inscripciones</Th>
                 <Th><span className="sr-only">Acciones</span></Th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={5} style={{ textAlign: 'center', padding: 40 }} className="muted">
+                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40 }} className="muted">
                   Ningún jugador coincide con la búsqueda.
                 </td></tr>
               ) : filtered.map(p => (
@@ -112,6 +114,7 @@ export function PlayersPage() {
                   </Td>
                   <Td>{p.email ?? <span className="muted">—</span>}</Td>
                   <Td>{p.phone ?? <span className="muted">—</span>}</Td>
+                  <Td>{p.category ? categoryLabel[p.category] : <span className="muted">—</span>}</Td>
                   <Td>
                     {p.participations.length > 0
                       ? <Badge tone="primary">{p.participations.length}</Badge>

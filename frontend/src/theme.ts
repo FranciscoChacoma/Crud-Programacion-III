@@ -1,4 +1,4 @@
-import type { PairCategory, PairLevel, PairSchedule, TournamentType } from './types';
+import type { PairCategory, PairLevel, PairSchedule, TournamentStage, TournamentType } from './types';
 
 export type Tone = 'neutral' | 'primary' | 'success' | 'warning' | 'danger';
 
@@ -41,6 +41,37 @@ export const scheduleShortLabel: Record<string, string> = {
   H15_18: '15–18',
   H18_21: '18–21',
 };
+
+export const stageLabel: Record<TournamentStage, string> = {
+  INSCRIPCION: 'Inscripción',
+  GRUPOS: 'Fase de grupos',
+  LLAVES: 'Llaves',
+  FINALIZADO: 'Finalizado',
+};
+
+export const stageTone: Record<TournamentStage, Tone> = {
+  INSCRIPCION: 'neutral',
+  GRUPOS: 'primary',
+  LLAVES: 'warning',
+  FINALIZADO: 'success',
+};
+
+/** "2026-11-14" → "sáb 14 nov 2026" (sin desfasaje por zona horaria). */
+export function formatDate(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/** Sets como "6-4 3-6 10-7". */
+export function scoreText(sets: { pair1: number; pair2: number }[]): string {
+  return sets.map(s => `${s.pair1}-${s.pair2}`).join('  ');
+}
+
+/** Nombre corto de una pareja: apellidos. */
+export function pairShort(p: { player1: string; player2: string }): string {
+  const last = (full: string) => full.split(' ').slice(1).join(' ') || full;
+  return `${last(p.player1)} / ${last(p.player2)}`;
+}
 
 // Deterministic swatch (0-7, styled by .avatar-N in index.css) so the same player always gets the same color.
 export function avatarIndex(seed: string): number {

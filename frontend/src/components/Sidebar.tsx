@@ -46,6 +46,9 @@ export function Sidebar() {
         <NavLink to="/players" className={navClass}>
           <Icon name="users" size={18} /> Jugadores
         </NavLink>
+        <NavLink to="/venues" className={navClass}>
+          <Icon name="building" size={18} /> Sedes
+        </NavLink>
         <NavLink to="/tournaments/new" className={navClass}>
           <Icon name="plus" size={18} /> Nuevo torneo
         </NavLink>
@@ -76,6 +79,9 @@ export function Topbar() {
       <div style={{ display: 'flex', gap: 4 }}>
         <NavLink to="/players" className="icon-btn sidebar-logout" aria-label="Jugadores" title="Jugadores">
           <Icon name="users" size={16} />
+        </NavLink>
+        <NavLink to="/venues" className="icon-btn sidebar-logout" aria-label="Sedes" title="Sedes">
+          <Icon name="building" size={16} />
         </NavLink>
         <ThemeToggle />
         <IconButton icon="logout" label="Cerrar sesión" className="sidebar-logout" onClick={() => { logout(); navigate('/login'); }} />

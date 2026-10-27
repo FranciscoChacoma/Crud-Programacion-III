@@ -21,4 +21,8 @@ public class Player {
     private String email;
 
     private String phone;
+
+    /** Categoría en la que juega (1ra a 8va); decide en qué torneos se puede inscribir. */
+    @Enumerated(EnumType.STRING)
+    private com.example.backend.model.enums.Category category;
 }
